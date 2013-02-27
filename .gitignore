@@ -13,3 +13,4 @@ src/Makefile.in
 src/tshark2json
 src/tshark2json.o
 stamp-h1
+nbproject/
