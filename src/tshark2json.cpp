@@ -1,10 +1,19 @@
 
-#include <string>
 #include <regex.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 int main(int argc, char* argv[]) {
   regex_t regexFrame;
   const char* s = "Frame 43: 54 bytes on wire (432 bits), 54 bytes captured (432 bits)";
+  
+  char* buffer = (char*)malloc(1000);
+  size_t n = 1000;
+  ssize_t read;
+  while((read = getline(&buffer, &n, stdin)) != -1) {
+      printf("line: %d %s", n, buffer);
+      n = 1000;
+  }
   
   regcomp(&regexFrame, "Frame [0-9]*:", 0);
   
