@@ -7,9 +7,6 @@ config.h.in
 config.log
 config.status
 configure
-depcomp
-install-sh
-missing
 src/.deps/
 src/Makefile
 src/Makefile.in
