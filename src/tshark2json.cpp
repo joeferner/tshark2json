@@ -1,4 +1,5 @@
 
+#define _FILE_OFFSET_BITS 64
 #include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +8,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <errno.h>
 
 #define REGEX_MATCH 0
 
@@ -55,7 +57,7 @@ static pthread_mutex_t g_outputLock;
 static bool g_verbose = false;
 static bool g_outputData = false;
 
-void replace(const char* original, const char* pattern, const char* replacement, char* buffer);
+void escape(char* dest, int destSize, const char* src);
 char* append(char* pDest, const char* str);
 char* appendJsonValue(char* pDest, char* str);
 char* appendInt(char* pDest, int i);
@@ -74,16 +76,18 @@ int main(int argc, char* argv[]) {
   char* pLine;
   char* pNewBuffer;
   char prevData[INITIAL_BUFFER_SIZE];
+  FILE* input = stdin;
 
   while (1) {
     static struct option longOptions[] = {
       {"verbose", no_argument, 0, 'v'},
       {"data", no_argument, 0, 'd'},
       {"threads", required_argument, 0, 't'},
+      {"in", required_argument, 0, 'i'},
       {0, 0, 0, 0}
     };
     int optionIndex = 0;
-    int c = getopt_long(argc, argv, "vdt:", longOptions, &optionIndex);
+    int c = getopt_long(argc, argv, "vdt:i:", longOptions, &optionIndex);
     if (c == -1) {
       break;
     }
@@ -98,11 +102,18 @@ int main(int argc, char* argv[]) {
       case 't':
         g_threadCount = strtol(optarg, NULL, 10);
         break;
+      case 'i':
+        input = fopen(optarg, "r");
+        if (input == NULL) {
+          fprintf(stderr, "could not open file: %s (%d: %s)\n", optarg, errno, strerror(errno));
+          abort();
+        }
+        break;
       case '?':
         /* getopt_long already printed an error message. */
         break;
       default:
-        printf("bad opt: %c\n", c);
+        fprintf(stderr, "bad opt: %c\n", c);
         abort();
     }
   }
@@ -164,7 +175,7 @@ int main(int argc, char* argv[]) {
         n = pThreadData->bufferSize - pThreadData->bufferWritePos;
       }
       pWrite = &pThreadData->buffer[pThreadData->bufferWritePos];
-      read = getline(&pWrite, &n, stdin);
+      read = getline(&pWrite, &n, input);
       if (read == -1) {
         break;
       }
@@ -544,8 +555,8 @@ void* thread_worker(void* threadDataParam) {
       APPEND_OUTPUT_BUFFER("}");
 
       pthread_mutex_lock(&g_outputLock);
-      fprintf(stdout, "%s\n", pOutputBuffer);
-      fflush(stdout);
+      //fprintf(stdout, "%s\n", pOutputBuffer);
+      //fflush(stdout);
       pthread_mutex_unlock(&g_outputLock);
 
       pThreadData->hasWork = false;
@@ -563,13 +574,9 @@ void* thread_worker(void* threadDataParam) {
 }
 
 char* appendJsonValue(char* pDest, char* str) {
-  char temp1[10000];
-  char temp2[10000];
-  char temp3[10000];
-  replace(str, "\n", "\\n", temp1);
-  replace(temp1, "\"", "\\\"", temp2);
-  replace(temp2, "\\", "\\\\", temp3);
-  char* result = append(pDest, temp3);
+  char temp[10000];
+  escape(temp, 10000, str);
+  char* result = append(pDest, temp);
   return result;
 }
 
@@ -637,24 +644,23 @@ void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, secti
   *ppOutputBufferWrite = pOutputBufferWrite;
 }
 
-void replace(const char* original, const char* pattern, const char* replacement, char* buffer) {
-  size_t const replen = strlen(replacement);
-  size_t const patlen = strlen(pattern);
-  size_t const orilen = strlen(original);
-
-  const char* oriptr;
-  const char* patloc;
-  char* retptr = buffer;
-
-  for (oriptr = original; patloc = strstr(oriptr, pattern); oriptr = patloc + patlen) {
-    const size_t skplen = patloc - oriptr;
-    // copy the section until the occurence of the pattern
-    strncpy(retptr, oriptr, skplen);
-    retptr += skplen;
-    // copy the replacement 
-    strncpy(retptr, replacement, replen);
-    retptr += replen;
+void escape(char* dest, int destSize, const char* src) {
+  destSize--; // make room for \0
+  char* p = dest;
+  while (*src) {
+    if (p - dest >= destSize) {
+      *p++ = '\0';
+      return;
+    }
+    switch (*src) {
+      case '\\':
+      case '"':
+        *p++ = '\\';
+        *p++ = *src++;
+        break;
+      default:
+        *p++ = *src++;
+        break;
+    }
   }
-  // copy the rest of the string.
-  strcpy(retptr, oriptr);
 }
