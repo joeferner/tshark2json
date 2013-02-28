@@ -210,6 +210,9 @@ int main(int argc, char* argv[]) {
     }
     g_threadData[t].exit = true;
     pthread_mutex_unlock(&g_threadData[t].lock);
+    pthread_mutex_lock(&g_threadData[t].waitLock);
+    pthread_cond_signal(&g_threadData[t].wait);
+    pthread_mutex_unlock(&g_threadData[t].waitLock);
   }
 
   // wait for threads to end
