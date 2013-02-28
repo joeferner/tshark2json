@@ -17,6 +17,7 @@
 
 #define APPEND_OUTPUT_BUFFER(str)   pOutputBufferWrite = append(pOutputBufferWrite, str)
 #define APPEND_OUTPUT_BUFFER_INT(i) pOutputBufferWrite = appendInt(pOutputBufferWrite, i)
+#define APPEND_OUTPUT_BUFFER_JSON_VALUE(str) pOutputBufferWrite = appendJsonValue(pOutputBufferWrite, str)
 
 enum sectionType_t {
   SECTION_TYPE_UNKNOWN,
@@ -54,7 +55,9 @@ static pthread_mutex_t g_outputLock;
 static bool g_verbose = false;
 static bool g_outputData = false;
 
+void replace(const char* original, const char* pattern, const char* replacement, char* buffer);
 char* append(char* pDest, const char* str);
+char* appendJsonValue(char* pDest, char* str);
 char* appendInt(char* pDest, int i);
 void* thread_worker(void* threadData);
 void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, sectionType_t newSectionType);
@@ -281,11 +284,11 @@ void* thread_worker(void* threadDataParam) {
   regcomp(&regexTcpAcknowledgmentNumber, "Acknowledgment number:[[:space:]]*([0-9]*)", REG_EXTENDED);
 
   //HTTP Regular Expressions
-  regcomp(&regexHttpUserAgent, "User-Agent:(.*)$", REG_EXTENDED);
-  regcomp(&regexHttpUri, "Full request URI:(.*)$", REG_EXTENDED);
-  regcomp(&regexHttpHost, "Host:(.*)$", REG_EXTENDED);
-  regcomp(&regexHttpMethod, "Request Method:(.*)$", REG_EXTENDED);
-  regcomp(&regexHttpStatusCode, "Status Code:(.*)$", REG_EXTENDED);
+  regcomp(&regexHttpUserAgent, "User-Agent:[[:space:]]*(.*)$", REG_EXTENDED);
+  regcomp(&regexHttpUri, "Full request URI:[[:space:]]*(.*)$", REG_EXTENDED);
+  regcomp(&regexHttpHost, "Host:[[:space:]]*(.*)$", REG_EXTENDED);
+  regcomp(&regexHttpMethod, "Request Method:[[:space:]]*(.*)$", REG_EXTENDED);
+  regcomp(&regexHttpStatusCode, "Status Code:[[:space:]]*(.*)$", REG_EXTENDED);
 
   pThreadData->started = true;
   while (!pThreadData->exit) {
@@ -379,22 +382,22 @@ void* thread_worker(void* threadDataParam) {
                 if (regexec(&regexHttpUserAgent, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
                   APPEND_OUTPUT_BUFFER("\"user_agent\":\"");
-                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER_JSON_VALUE(&pLine[pmatch[1].rm_so]);
                   APPEND_OUTPUT_BUFFER("\",");
                 } else if (regexec(&regexHttpUri, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
                   APPEND_OUTPUT_BUFFER("\"uri\":\"");
-                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER_JSON_VALUE(pStart);
                   APPEND_OUTPUT_BUFFER("\",");
                 } else if (regexec(&regexHttpHost, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
                   APPEND_OUTPUT_BUFFER("\"host\":\"");
-                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER_JSON_VALUE(&pLine[pmatch[1].rm_so]);
                   APPEND_OUTPUT_BUFFER("\",");
                 } else if (regexec(&regexHttpMethod, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
                   APPEND_OUTPUT_BUFFER("\"method\":\"");
-                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER_JSON_VALUE(&pLine[pmatch[1].rm_so]);
                   APPEND_OUTPUT_BUFFER("\",");
                 } else if (regexec(&regexHttpStatusCode, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
@@ -559,6 +562,15 @@ void* thread_worker(void* threadDataParam) {
   return NULL;
 }
 
+char* appendJsonValue(char* pDest, char* str) {
+  char temp1[10000];
+  char temp2[10000];
+  replace(str, "\n", "\\n", temp1);
+  replace(temp1, "\\", "\\\\", temp2);
+  char* result = append(pDest, temp2);
+  return result;
+}
+
 char* append(char* pDest, const char* str) {
   while (*str) {
     *pDest++ = *str++;
@@ -621,4 +633,26 @@ void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, secti
   }
   *sectionType = newSectionType;
   *ppOutputBufferWrite = pOutputBufferWrite;
+}
+
+void replace(const char* original, const char* pattern, const char* replacement, char* buffer) {
+  size_t const replen = strlen(replacement);
+  size_t const patlen = strlen(pattern);
+  size_t const orilen = strlen(original);
+
+  const char* oriptr;
+  const char* patloc;
+  char* retptr = buffer;
+
+  for (oriptr = original; patloc = strstr(oriptr, pattern); oriptr = patloc + patlen) {
+    const size_t skplen = patloc - oriptr;
+    // copy the section until the occurence of the pattern
+    strncpy(retptr, oriptr, skplen);
+    retptr += skplen;
+    // copy the replacement 
+    strncpy(retptr, replacement, replen);
+    retptr += replen;
+  }
+  // copy the rest of the string.
+  strcpy(retptr, oriptr);
 }
