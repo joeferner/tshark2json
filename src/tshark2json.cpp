@@ -57,6 +57,8 @@ static threadData_t* g_threadData;
 static pthread_mutex_t g_outputLock;
 static bool g_verbose = false;
 static bool g_outputData = false;
+static bool g_outputUdp = true;
+static bool g_outputTcp = true;
 
 void escape(char* dest, int destSize, const char* src);
 char* append(const char* pStart, char* pDest, const char* str);
@@ -83,17 +85,22 @@ int main(int argc, char* argv[]) {
     static struct option longOptions[] = {
       {"verbose", no_argument, 0, 'v'},
       {"data", no_argument, 0, 'd'},
+      {"tcpOnly", no_argument, 0, 'z'},
       {"threads", required_argument, 0, 't'},
       {"in", required_argument, 0, 'i'},
       {0, 0, 0, 0}
     };
     int optionIndex = 0;
-    int c = getopt_long(argc, argv, "vdt:i:", longOptions, &optionIndex);
+    int c = getopt_long(argc, argv, "zvdt:i:", longOptions, &optionIndex);
     if (c == -1) {
       break;
     }
 
     switch (c) {
+      case 'z': // tcpOnly
+        g_outputTcp = true;
+        g_outputUdp = false;
+        break;
       case 'v':
         g_verbose = true;
         break;
@@ -236,6 +243,8 @@ void* thread_worker(void* threadDataParam) {
   char* pEnd;
   bool error;
   bool sectionMatch;
+  bool isTcp;
+  bool isUdp;
   sectionType_t sectionType;
   regex_t regexFrame;
   regex_t regexSectionEthernet;
@@ -312,6 +321,8 @@ void* thread_worker(void* threadDataParam) {
 
       sectionType = SECTION_TYPE_FRAME;
       error = false;
+      isTcp = false;
+      isUdp = false;
       pOutputBufferWrite = pOutputBuffer;
       pOutputBufferWrite[0] = '\0';
       APPEND_OUTPUT_BUFFER("{");
@@ -353,9 +364,11 @@ void* thread_worker(void* threadDataParam) {
             sectionMatch = true;
             changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_IP);
           } else if (regexec(&regexSectionTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            isTcp = true;
             sectionMatch = true;
             changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_TCP);
           } else if (regexec(&regexSectionUdp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            isUdp = true;
             sectionMatch = true;
             changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_UDP);
           } else if (regexec(&regexSectionDns, pLine, 0, NULL, 0) == REGEX_MATCH) {
@@ -558,10 +571,12 @@ void* thread_worker(void* threadDataParam) {
       changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_END);
       APPEND_OUTPUT_BUFFER("}");
 
-      pthread_mutex_lock(&g_outputLock);
-      fprintf(stdout, "%s\n", pOutputBuffer);
-      fflush(stdout);
-      pthread_mutex_unlock(&g_outputLock);
+      if ((g_outputTcp && isTcp) || (g_outputUdp && isUdp)) {
+        pthread_mutex_lock(&g_outputLock);
+        fprintf(stdout, "%s\n", pOutputBuffer);
+        fflush(stdout);
+        pthread_mutex_unlock(&g_outputLock);
+      }
 
       pThreadData->hasWork = false;
       pthread_mutex_unlock(&pThreadData->lock);
