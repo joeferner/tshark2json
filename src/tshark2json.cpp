@@ -10,15 +10,16 @@
 #define REGEX_MATCH 0
 
 #define OUTPUT_BUFFER_SIZE  100000
-#define INITIAL_BUFFER_SIZE 1000
-#define MIN_BUFFER_ROOM     1000
-#define BUFFER_GROW         1000
+#define INITIAL_BUFFER_SIZE 100000
+#define MIN_BUFFER_ROOM     10000
+#define BUFFER_GROW         10000
 #define WORKER_THREAD_COUNT 8
 
 #define APPEND_OUTPUT_BUFFER(str)   pOutputBufferWrite = append(pOutputBufferWrite, str)
 #define APPEND_OUTPUT_BUFFER_INT(i) pOutputBufferWrite = appendInt(pOutputBufferWrite, i)
 
 enum sectionType_t {
+  SECTION_TYPE_UNKNOWN,
   SECTION_TYPE_FRAME,
   SECTION_TYPE_ETHERNET,
   SECTION_TYPE_IP,
@@ -221,7 +222,13 @@ void* thread_worker(void* threadDataParam) {
             break;
           }
         } else { // not line number 0
-          if (regexec(&regexSectionEthernet, pLine, 0, NULL, 0) == REGEX_MATCH) {
+          if (sectionType == SECTION_TYPE_UNKNOWN && pLine[0] != '\0') {
+            if (regexec(&regexData, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+              changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
+            }
+          } else if (pLine[0] == '\0') {
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_UNKNOWN);
+          } else if (regexec(&regexSectionEthernet, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionType = SECTION_TYPE_ETHERNET;
           } else if (regexec(&regexSectionIp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionType = SECTION_TYPE_IP;
@@ -233,8 +240,6 @@ void* thread_worker(void* threadDataParam) {
             sectionType = SECTION_TYPE_DNS;
           } else if (regexec(&regexSectionHttp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionType = SECTION_TYPE_HTTP;
-          } else if (strlen(pLine) == 0 && sectionType != SECTION_TYPE_DATA) {
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
           } else {
             switch (sectionType) {
               case SECTION_TYPE_FRAME:
@@ -256,7 +261,7 @@ void* thread_worker(void* threadDataParam) {
                 fprintf(stderr, "dns: %s\n", pLine);
                 break;
               case SECTION_TYPE_HTTP:
-                fprintf(stderr, "http: %s\n", pLine);
+                //fprintf(stderr, "http: %s\n", pLine);
                 break;
               case SECTION_TYPE_DATA:
                 if (regexec(&regexData, pLine, nmatch, pmatch, 0) != REGEX_MATCH) {
@@ -331,7 +336,7 @@ void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, secti
 
   switch (*sectionType) {
     case SECTION_TYPE_DATA:
-      if(*(pOutputBufferWrite-1) == ',') {
+      if (*(pOutputBufferWrite - 1) == ',') {
         pOutputBufferWrite--;
         *pOutputBufferWrite = '\0';
       }
