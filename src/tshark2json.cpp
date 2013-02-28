@@ -175,6 +175,7 @@ void* thread_worker(void* threadDataParam) {
   regex_t regexSectionHttp;
   regex_t regexData;
 
+  regex_t regexTcpLen;
   regex_t regexTcpStreamIndex;
   regex_t regexTcpFlags;
   regex_t regexTcpSourcePort;
@@ -200,6 +201,7 @@ void* thread_worker(void* threadDataParam) {
   // IP Regular Expressions
 
   // TCP Regular Expressions
+  regcomp(&regexTcpLen, "Len: ([0-9]*)", REG_EXTENDED);
   regcomp(&regexTcpStreamIndex, "\\[Stream index: ([0-9]*)\\]", REG_EXTENDED);
   regcomp(&regexTcpFlags, "Flags:.*\\((.*)\\)", REG_EXTENDED);
   regcomp(&regexTcpSourcePort, "Source port:.*\\(([0-9]*)\\)", REG_EXTENDED);
@@ -260,7 +262,7 @@ void* thread_worker(void* threadDataParam) {
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DNS);
           } else if (regexec(&regexSectionHttp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_HTTP);
-          } else {
+          } 
             switch (sectionType) {
               case SECTION_TYPE_FRAME:
                 fprintf(stderr, "frame: %s\n", pLine);
@@ -272,7 +274,13 @@ void* thread_worker(void* threadDataParam) {
                 fprintf(stderr, "ip: %s\n", pLine);
                 break;
               case SECTION_TYPE_TCP:
-                if (regexec(&regexTcpStreamIndex, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                if (regexec(&regexTcpLen, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pStart = &pLine[pmatch[1].rm_so];
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"dataLength\":");
+                  APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 10));
+                  APPEND_OUTPUT_BUFFER(",");
+                } else if (regexec(&regexTcpStreamIndex, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pStart = &pLine[pmatch[1].rm_so];
                   pLine[pmatch[1].rm_eo] = '\0';
                   APPEND_OUTPUT_BUFFER("\"streamIndex\":");
@@ -359,7 +367,6 @@ void* thread_worker(void* threadDataParam) {
                 fprintf(stderr, "unknown: %s\n", pLine);
                 break;
             }
-          }
         }
 
         pLine = pEndOfLine + 1;
