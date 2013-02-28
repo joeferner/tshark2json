@@ -224,6 +224,12 @@ void* thread_worker(void* threadDataParam) {
   regex_t regexTcpDestinationPort;
   regex_t regexTcpSequenceNumber;
   regex_t regexTcpAcknowledgmentNumber;
+  regex_t regexHttpUserAgent;
+  regex_t regexHttpUri;
+  regex_t regexHttpHost;
+  regex_t regexHttpMethod;
+  regex_t regexHttpStatusCode;
+
 
   size_t nmatch = 10;
   regmatch_t pmatch[10];
@@ -256,6 +262,15 @@ void* thread_worker(void* threadDataParam) {
   regcomp(&regexTcpDestinationPort, "Destination port:.*\\(([0-9]*)\\)", REG_EXTENDED);
   regcomp(&regexTcpSequenceNumber, "Sequence number:[[:space:]]*([0-9]*)", REG_EXTENDED);
   regcomp(&regexTcpAcknowledgmentNumber, "Acknowledgment number:[[:space:]]*([0-9]*)", REG_EXTENDED);
+
+  //HTTP Regular Expressions
+  regcomp(&regexHttpUserAgent,"User-Agent:(.*)$" ,REG_EXTENDED);
+  regcomp(&regexHttpUri,"Full request URI:(.*)$" ,REG_EXTENDED);
+  regcomp(&regexHttpHost,"Host:(.*)$" ,REG_EXTENDED);
+  regcomp(&regexHttpMethod,"Request Method:(.*)$" ,REG_EXTENDED);
+  regcomp(&regexHttpStatusCode,"Status Code:(.*)$" ,REG_EXTENDED);
+
+
 
   pThreadData->started = true;
   while (!pThreadData->exit) {
@@ -339,8 +354,38 @@ void* thread_worker(void* threadDataParam) {
               case SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY:
               case SECTION_TYPE_DATA_REASSEMBLED_TCP:
               case SECTION_TYPE_DATA_XML:
-              case SECTION_TYPE_HTTP:
                 // don't need this data
+                break;
+              case SECTION_TYPE_HTTP:
+                // if (g_verbose) {
+                  // fprintf(stderr, "http: %s\n", pLine);
+                // }
+                if (regexec(&regexHttpUserAgent, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"user_agent\":");
+                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER(","); 
+                } else if (regexec(&regexHttpUri, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"uri\":");
+                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER(",");
+                } else if (regexec(&regexHttpHost, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"host\":");
+                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER(",");
+                } else if (regexec(&regexHttpMethod, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"method\":");
+                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER(",");
+                } else if (regexec(&regexHttpStatusCode, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"status_code\":");
+                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER(",");
+                }
                 break;
               case SECTION_TYPE_FRAME:
                 if (g_verbose) {
@@ -527,6 +572,7 @@ void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, secti
       }
       break;
     case SECTION_TYPE_TCP:
+    case SECTION_TYPE_HTTP:
     case SECTION_TYPE_IP:
       if (*(pOutputBufferWrite - 1) == ',') {
         pOutputBufferWrite--;
@@ -547,6 +593,9 @@ void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, secti
       break;
     case SECTION_TYPE_IP:
       APPEND_OUTPUT_BUFFER(",\"ip\": {");
+      break;
+    case SECTION_TYPE_HTTP:
+      APPEND_OUTPUT_BUFFER(",\"http\": {");
       break;
   }
   *sectionType = newSectionType;
