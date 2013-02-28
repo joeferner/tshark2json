@@ -262,7 +262,8 @@ void* thread_worker(void* threadDataParam) {
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DNS);
           } else if (regexec(&regexSectionHttp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_HTTP);
-          } 
+          }
+          if (pLine[0] != '\0') {
             switch (sectionType) {
               case SECTION_TYPE_FRAME:
                 fprintf(stderr, "frame: %s\n", pLine);
@@ -367,6 +368,7 @@ void* thread_worker(void* threadDataParam) {
                 fprintf(stderr, "unknown: %s\n", pLine);
                 break;
             }
+          }
         }
 
         pLine = pEndOfLine + 1;
