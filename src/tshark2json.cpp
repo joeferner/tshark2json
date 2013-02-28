@@ -565,9 +565,11 @@ void* thread_worker(void* threadDataParam) {
 char* appendJsonValue(char* pDest, char* str) {
   char temp1[10000];
   char temp2[10000];
+  char temp3[10000];
   replace(str, "\n", "\\n", temp1);
-  replace(temp1, "\\", "\\\\", temp2);
-  char* result = append(pDest, temp2);
+  replace(temp1, "\"", "\\\"", temp2);
+  replace(temp2, "\\", "\\\\", temp3);
+  char* result = append(pDest, temp3);
   return result;
 }
 
