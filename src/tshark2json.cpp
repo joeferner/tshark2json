@@ -30,6 +30,7 @@ enum sectionType_t {
   SECTION_TYPE_DNS,
   SECTION_TYPE_HTTP,
   SECTION_TYPE_DATA,
+  SECTION_TYPE_DATA_REASSEMBLED_TCP,
   SECTION_TYPE_END
 };
 
@@ -165,6 +166,7 @@ void* thread_worker(void* threadDataParam) {
   char* pStart;
   char* pEnd;
   bool error;
+  bool sectionMatch;
   sectionType_t sectionType;
   regex_t regexFrame;
   regex_t regexSectionEthernet;
@@ -173,6 +175,8 @@ void* thread_worker(void* threadDataParam) {
   regex_t regexSectionUdp;
   regex_t regexSectionDns;
   regex_t regexSectionHttp;
+  regex_t regexSectionFrame;
+  regex_t regexSectionReassembledTcp;
   regex_t regexData;
 
   regex_t regexTcpLen;
@@ -196,6 +200,8 @@ void* thread_worker(void* threadDataParam) {
   regcomp(&regexSectionUdp, "^User Datagram Protocol, .*$", REG_EXTENDED);
   regcomp(&regexSectionDns, "^Domain Name System .*$", REG_EXTENDED);
   regcomp(&regexSectionHttp, "^Hypertext Transfer Protocol.*$", REG_EXTENDED);
+  regcomp(&regexSectionFrame, "^Frame \\([0-9]* bytes\\):$", REG_EXTENDED);
+  regcomp(&regexSectionReassembledTcp, "^Reassembled TCP \\([0-9]* bytes\\):$", REG_EXTENDED);
   regcomp(&regexData, "^([0-9a-fA-F]+)[[:space:]]+([0-9a-fA-F ]+)[[:space:]]+.+$", REG_EXTENDED);
 
   // IP Regular Expressions
@@ -244,27 +250,44 @@ void* thread_worker(void* threadDataParam) {
             break;
           }
         } else { // not line number 0
-          if (sectionType == SECTION_TYPE_UNKNOWN && pLine[0] != '\0') {
+          sectionMatch = false;
+          if (pLine[0] == '\0') {
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_UNKNOWN);
+          } else if (regexec(&regexSectionEthernet, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_ETHERNET);
+          } else if (regexec(&regexSectionIp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_IP);
+          } else if (regexec(&regexSectionTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_TCP);
+          } else if (regexec(&regexSectionUdp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_UDP);
+          } else if (regexec(&regexSectionDns, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DNS);
+          } else if (regexec(&regexSectionHttp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_HTTP);
+          } else if (regexec(&regexSectionFrame, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
+          } else if (regexec(&regexSectionReassembledTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_REASSEMBLED_TCP);
+          } else if (sectionType == SECTION_TYPE_UNKNOWN && pLine[0] != '\0') {
             if (regexec(&regexData, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
               changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
             }
-          } else if (pLine[0] == '\0') {
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_UNKNOWN);
-          } else if (regexec(&regexSectionEthernet, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_ETHERNET);
-          } else if (regexec(&regexSectionIp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_IP);
-          } else if (regexec(&regexSectionTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_TCP);
-          } else if (regexec(&regexSectionUdp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_UDP);
-          } else if (regexec(&regexSectionDns, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DNS);
-          } else if (regexec(&regexSectionHttp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_HTTP);
           }
+
           if (pLine[0] != '\0') {
             switch (sectionType) {
+              case SECTION_TYPE_DATA_REASSEMBLED_TCP:
+                // don't need this data
+                break;
               case SECTION_TYPE_FRAME:
                 fprintf(stderr, "frame: %s\n", pLine);
                 break;
@@ -340,27 +363,29 @@ void* thread_worker(void* threadDataParam) {
                 //fprintf(stderr, "http: %s\n", pLine);
                 break;
               case SECTION_TYPE_DATA:
-                if (regexec(&regexData, pLine, nmatch, pmatch, 0) != REGEX_MATCH) {
-                  if (strlen(pLine) == 0) {
-                    break;
-                  }
-                  fprintf(stderr, "ERROR: bad line in data section: %s\n", pLine);
-                  error = true;
-                  break;
-                }
-                if (OUTPUT_DATA) {
-                  pLine[pmatch[1].rm_eo] = '\0';
-                  pLine[pmatch[2].rm_eo] = '\0';
-                  dataAddress = strtol(&pLine[pmatch[1].rm_so], NULL, 16);
-                  pStart = &pLine[pmatch[2].rm_so];
-                  while (pEnd = strchr(pStart, ' ')) {
-                    *pEnd = '\0';
-                    if (strlen(pStart) == 0) {
+                if (!sectionMatch) {
+                  if (regexec(&regexData, pLine, nmatch, pmatch, 0) != REGEX_MATCH) {
+                    if (strlen(pLine) == 0) {
                       break;
                     }
-                    APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 16));
-                    APPEND_OUTPUT_BUFFER(",");
-                    pStart = pEnd + 1;
+                    fprintf(stderr, "ERROR: bad line in data section: %s\n", pLine);
+                    error = true;
+                    break;
+                  }
+                  if (OUTPUT_DATA) {
+                    pLine[pmatch[1].rm_eo] = '\0';
+                    pLine[pmatch[2].rm_eo] = '\0';
+                    dataAddress = strtol(&pLine[pmatch[1].rm_so], NULL, 16);
+                    pStart = &pLine[pmatch[2].rm_so];
+                    while (pEnd = strchr(pStart, ' ')) {
+                      *pEnd = '\0';
+                      if (strlen(pStart) == 0) {
+                        break;
+                      }
+                      APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 16));
+                      APPEND_OUTPUT_BUFFER(",");
+                      pStart = pEnd + 1;
+                    }
                   }
                 }
                 break;
@@ -411,6 +436,10 @@ char* appendInt(char* pDest, int i) {
 
 void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, sectionType_t newSectionType) {
   char* pOutputBufferWrite = *ppOutputBufferWrite;
+
+  if (*sectionType == newSectionType) {
+    return;
+  }
 
   if (*(pOutputBufferWrite - 1) == ',') {
     pOutputBufferWrite--;
