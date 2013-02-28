@@ -9,6 +9,8 @@
 
 #define REGEX_MATCH 0
 
+#define OUTPUT_DATA false
+
 #define OUTPUT_BUFFER_SIZE  100000
 #define INITIAL_BUFFER_SIZE 100000
 #define MIN_BUFFER_ROOM     10000
@@ -239,17 +241,17 @@ void* thread_worker(void* threadDataParam) {
           } else if (pLine[0] == '\0') {
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_UNKNOWN);
           } else if (regexec(&regexSectionEthernet, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            sectionType = SECTION_TYPE_ETHERNET;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_ETHERNET);
           } else if (regexec(&regexSectionIp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            sectionType = SECTION_TYPE_IP;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_IP);
           } else if (regexec(&regexSectionTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            sectionType = SECTION_TYPE_TCP;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_TCP);
           } else if (regexec(&regexSectionUdp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            sectionType = SECTION_TYPE_UDP;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_UDP);
           } else if (regexec(&regexSectionDns, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            sectionType = SECTION_TYPE_DNS;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DNS);
           } else if (regexec(&regexSectionHttp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-            sectionType = SECTION_TYPE_HTTP;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_HTTP);
           } else {
             switch (sectionType) {
               case SECTION_TYPE_FRAME:
@@ -265,7 +267,10 @@ void* thread_worker(void* threadDataParam) {
                 if (regexec(&regexTcpLen, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   fprintf(stderr, "tcp len: %s\n", pLine);
                 } else if (regexec(&regexTcpStreamIndex, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
-                  fprintf(stderr, "tcp stream index: %s\n", pLine);
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"streamIndex\":");
+                  APPEND_OUTPUT_BUFFER_INT(strtol(&pLine[pmatch[1].rm_so], NULL, 10));
+                  APPEND_OUTPUT_BUFFER(",");
                 } else {
                   fprintf(stderr, "tcp: %s\n", pLine);
                 }
@@ -288,18 +293,20 @@ void* thread_worker(void* threadDataParam) {
                   error = true;
                   break;
                 }
-                pLine[pmatch[1].rm_eo] = '\0';
-                pLine[pmatch[2].rm_eo] = '\0';
-                dataAddress = strtol(&pLine[pmatch[1].rm_so], NULL, 16);
-                pStart = &pLine[pmatch[2].rm_so];
-                while (pEnd = strchr(pStart, ' ')) {
-                  *pEnd = '\0';
-                  if (strlen(pStart) == 0) {
-                    break;
+                if (OUTPUT_DATA) {
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  pLine[pmatch[2].rm_eo] = '\0';
+                  dataAddress = strtol(&pLine[pmatch[1].rm_so], NULL, 16);
+                  pStart = &pLine[pmatch[2].rm_so];
+                  while (pEnd = strchr(pStart, ' ')) {
+                    *pEnd = '\0';
+                    if (strlen(pStart) == 0) {
+                      break;
+                    }
+                    APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 16));
+                    APPEND_OUTPUT_BUFFER(",");
+                    pStart = pEnd + 1;
                   }
-                  APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 16));
-                  APPEND_OUTPUT_BUFFER(",");
-                  pStart = pEnd + 1;
                 }
                 break;
               default:
@@ -369,10 +376,10 @@ void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, secti
       APPEND_OUTPUT_BUFFER(",\"data\": [");
       break;
     case SECTION_TYPE_TCP:
-      APPEND_OUTPUT_BUFFER(",\"tcp\": [");
+      APPEND_OUTPUT_BUFFER(",\"tcp\": {");
       break;
     case SECTION_TYPE_IP:
-      APPEND_OUTPUT_BUFFER(",\"ip\": [");
+      APPEND_OUTPUT_BUFFER(",\"ip\": {");
       break;
   }
   *sectionType = newSectionType;
