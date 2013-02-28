@@ -14,7 +14,6 @@
 #define INITIAL_BUFFER_SIZE 100000
 #define MIN_BUFFER_ROOM     10000
 #define BUFFER_GROW         10000
-#define WORKER_THREAD_COUNT 8
 
 #define APPEND_OUTPUT_BUFFER(str)   pOutputBufferWrite = append(pOutputBufferWrite, str)
 #define APPEND_OUTPUT_BUFFER_INT(i) pOutputBufferWrite = appendInt(pOutputBufferWrite, i)
@@ -31,6 +30,7 @@ enum sectionType_t {
   SECTION_TYPE_DATA,
   SECTION_TYPE_DATA_REASSEMBLED_TCP,
   SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY,
+  SECTION_TYPE_DATA_DECHUNKED_ENTITY_BODY,
   SECTION_TYPE_DATA_XML,
   SECTION_TYPE_END
 };
@@ -46,8 +46,9 @@ struct threadData_t {
   bool exit;
 };
 
-threadData_t g_threadData[WORKER_THREAD_COUNT];
-pthread_mutex_t g_outputLock;
+static int g_threadCount = 8;
+static threadData_t* g_threadData;
+static pthread_mutex_t g_outputLock;
 static bool g_verbose = false;
 static bool g_outputData = false;
 
@@ -90,7 +91,7 @@ int main(int argc, char* argv[]) {
         g_outputData = true;
         break;
       case 't':
-        printf("option -t with value `%s'\n", optarg);
+        g_threadCount = strtol(optarg, NULL, 10);
         break;
       case '?':
         /* getopt_long already printed an error message. */
@@ -101,11 +102,13 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  g_threadData = (threadData_t*) malloc(sizeof (threadData_t) * g_threadCount);
+
   prevData[0] = '\0';
   regcomp(&regexFrame, "Frame [0-9]*:", 0);
   pthread_mutex_init(&g_outputLock, NULL);
 
-  for (t = 0; t < WORKER_THREAD_COUNT; t++) {
+  for (t = 0; t < g_threadCount; t++) {
     g_threadData[t].started = false;
     g_threadData[t].exit = false;
     g_threadData[t].hasWork = false;
@@ -116,21 +119,24 @@ int main(int argc, char* argv[]) {
     pthread_create(&g_threadData[t].thread, NULL, thread_worker, (void*) &g_threadData[t]);
   }
 
+  // wait for threads to start
   do {
-    for (t = 0; t < WORKER_THREAD_COUNT; t++) {
+    for (t = 0; t < g_threadCount; t++) {
       if (!g_threadData[t].started) {
         usleep(1000);
         break;
       }
     }
-  } while (t < WORKER_THREAD_COUNT);
+  } while (t < g_threadCount);
   usleep(1000);
 
+  // process stdin
   t = 0;
   while (1) {
     pThreadData = &g_threadData[t];
     while (pThreadData->hasWork) {
-      usleep(1000);
+      t = (t + 1) % g_threadCount;
+      pThreadData = &g_threadData[t];
     }
     pthread_mutex_lock(&pThreadData->lock);
     strcpy(pThreadData->buffer, prevData);
@@ -172,17 +178,20 @@ int main(int argc, char* argv[]) {
     if (read == -1) {
       break;
     }
-    t = (t + 1) % WORKER_THREAD_COUNT;
+    t = (t + 1) % g_threadCount;
   }
 
-  for (t = 0; t < WORKER_THREAD_COUNT; t++) {
+  // stop threads
+  for (t = 0; t < g_threadCount; t++) {
     while (g_threadData[t].hasWork) {
       usleep(1000);
     }
     g_threadData[t].exit = true;
     pthread_mutex_unlock(&g_threadData[t].lock);
   }
-  for (t = 0; t < WORKER_THREAD_COUNT; t++) {
+  
+  // wait for threads to end
+  for (t = 0; t < g_threadCount; t++) {
     pthread_join(g_threadData[t].thread, NULL);
     free(g_threadData[t].buffer);
   }
@@ -213,6 +222,7 @@ void* thread_worker(void* threadDataParam) {
   regex_t regexSectionFrame;
   regex_t regexSectionReassembledTcp;
   regex_t regexSectionUncompressedEntityBody;
+  regex_t regexSectionDechunkedEntityBody;
   regex_t regexSectionXml;
   regex_t regexData;
   regex_t regexIPSource;
@@ -247,6 +257,7 @@ void* thread_worker(void* threadDataParam) {
   regcomp(&regexSectionFrame, "^Frame \\([0-9]* bytes\\):$", REG_EXTENDED);
   regcomp(&regexSectionReassembledTcp, "^Reassembled TCP \\([0-9]* bytes\\):$", REG_EXTENDED);
   regcomp(&regexSectionUncompressedEntityBody, "^Uncompressed entity body \\([0-9]* bytes\\):$", REG_EXTENDED);
+  regcomp(&regexSectionDechunkedEntityBody, "^De-chunked entity body \\([0-9]* bytes\\):$", REG_EXTENDED);
   regcomp(&regexSectionXml, "^eXtensible Markup Language$", REG_EXTENDED);
   regcomp(&regexData, "^([0-9a-fA-F]+)[[:space:]]+([0-9a-fA-F ]+)[[:space:]]+.+$", REG_EXTENDED);
 
@@ -340,6 +351,9 @@ void* thread_worker(void* threadDataParam) {
           } else if (regexec(&regexSectionUncompressedEntityBody, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY);
+          } else if (regexec(&regexSectionDechunkedEntityBody, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_DECHUNKED_ENTITY_BODY);
           } else if (regexec(&regexSectionXml, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_XML);
@@ -351,6 +365,7 @@ void* thread_worker(void* threadDataParam) {
 
           if (pLine[0] != '\0') {
             switch (sectionType) {
+              case SECTION_TYPE_DATA_DECHUNKED_ENTITY_BODY:
               case SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY:
               case SECTION_TYPE_DATA_REASSEMBLED_TCP:
               case SECTION_TYPE_DATA_XML:
@@ -529,7 +544,7 @@ void* thread_worker(void* threadDataParam) {
       pThreadData->hasWork = false;
       pthread_mutex_unlock(&pThreadData->lock);
     } else {
-      usleep(1000);
+      usleep(10); // no work to do so sleep
     }
   }
 
