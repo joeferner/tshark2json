@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <getopt.h>
 
 #define REGEX_MATCH 0
 
@@ -47,6 +48,7 @@ struct threadData_t {
 
 threadData_t g_threadData[WORKER_THREAD_COUNT];
 pthread_mutex_t g_outputLock;
+static bool g_verbose;
 
 char* append(char* pDest, const char* str);
 char* appendInt(char* pDest, int i);
@@ -65,6 +67,34 @@ int main(int argc, char* argv[]) {
   char* pLine;
   char* pNewBuffer;
   char prevData[INITIAL_BUFFER_SIZE];
+
+  while (1) {
+    static struct option longOptions[] = {
+      {"verbose", no_argument, 0, 'v'},
+      {"threads", required_argument, 0, 't'},
+      {0, 0, 0, 0}
+    };
+    int optionIndex = 0;
+    int c = getopt_long(argc, argv, "vt:", longOptions, &optionIndex);
+    if (c == -1) {
+      break;
+    }
+
+    switch (c) {
+      case 'v':
+        g_verbose = true;
+        break;
+      case 't':
+        printf("option -t with value `%s'\n", optarg);
+        break;
+      case '?':
+        /* getopt_long already printed an error message. */
+        break;
+      default:
+        printf("bad opt: %c\n", c);
+        abort();
+    }
+  }
 
   prevData[0] = '\0';
   regcomp(&regexFrame, "Frame [0-9]*:", 0);
@@ -289,13 +319,19 @@ void* thread_worker(void* threadDataParam) {
                 // don't need this data
                 break;
               case SECTION_TYPE_FRAME:
-                fprintf(stderr, "frame: %s\n", pLine);
+                if (g_verbose) {
+                  fprintf(stderr, "frame: %s\n", pLine);
+                }
                 break;
               case SECTION_TYPE_ETHERNET:
-                fprintf(stderr, "ethernet: %s\n", pLine);
+                if (g_verbose) {
+                  fprintf(stderr, "ethernet: %s\n", pLine);
+                }
                 break;
               case SECTION_TYPE_IP:
-                fprintf(stderr, "ip: %s\n", pLine);
+                if (g_verbose) {
+                  fprintf(stderr, "ip: %s\n", pLine);
+                }
                 break;
               case SECTION_TYPE_TCP:
                 if (regexec(&regexTcpLen, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
@@ -354,13 +390,19 @@ void* thread_worker(void* threadDataParam) {
                 }
                 break;
               case SECTION_TYPE_UDP:
-                fprintf(stderr, "udp: %s\n", pLine);
+                if (g_verbose) {
+                  fprintf(stderr, "udp: %s\n", pLine);
+                }
                 break;
               case SECTION_TYPE_DNS:
-                fprintf(stderr, "dns: %s\n", pLine);
+                if (g_verbose) {
+                  fprintf(stderr, "dns: %s\n", pLine);
+                }
                 break;
               case SECTION_TYPE_HTTP:
-                //fprintf(stderr, "http: %s\n", pLine);
+                if (g_verbose) {
+                  fprintf(stderr, "http: %s\n", pLine);
+                }
                 break;
               case SECTION_TYPE_DATA:
                 if (!sectionMatch) {
@@ -390,7 +432,9 @@ void* thread_worker(void* threadDataParam) {
                 }
                 break;
               default:
-                fprintf(stderr, "unknown: %s\n", pLine);
+                if (g_verbose) {
+                  fprintf(stderr, "unknown: %s\n", pLine);
+                }
                 break;
             }
           }
