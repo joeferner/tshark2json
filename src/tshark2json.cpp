@@ -134,7 +134,6 @@ int main(int argc, char* argv[]) {
       break;
     }
     t = (t + 1) % WORKER_THREAD_COUNT;
-    break;
   }
 
   for (t = 0; t < WORKER_THREAD_COUNT; t++) {
