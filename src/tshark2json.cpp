@@ -61,7 +61,7 @@ static bool g_outputData = false;
 void escape(char* dest, int destSize, const char* src);
 char* append(const char* pStart, char* pDest, const char* str);
 char* appendJsonValue(const char* pStart, char* pDest, char* str);
-char* appendInt(const char* pStart, char* pDest, int i);
+char* appendInt(const char* pStart, char* pDest, long i);
 void* thread_worker(void* threadData);
 void changeSection(const char* pOutputBuffer, char** ppOutputBufferWrite, sectionType_t *sectionType, sectionType_t newSectionType);
 
@@ -595,10 +595,10 @@ char* append(const char* pStart, char* pDest, const char* str) {
   return pDest;
 }
 
-char* appendInt(const char* pStart, char* pDest, int i) {
+char* appendInt(const char* pStart, char* pDest, long i) {
   char buffer[100];
   int bufferLen;
-  sprintf(buffer, "%d", i);
+  sprintf(buffer, "%ld", i);
   bufferLen = strlen(buffer);
   if ((pDest - pStart) + bufferLen >= OUTPUT_BUFFER_SIZE) {
     fprintf(stderr, "output buffer too small\n");
@@ -665,15 +665,21 @@ void escape(char* dest, int destSize, const char* src) {
       *p++ = '\0';
       return;
     }
-    switch (*src) {
-      case '\\':
-      case '"':
-        *p++ = '\\';
-        *p++ = *src++;
-        break;
-      default:
-        *p++ = *src++;
-        break;
+    if (*src < ' ' || *src > '~') {
+      *p++ = '.';
+    }
+    {
+      switch (*src) {
+        case '\\':
+        case '"':
+          *p++ = '\\';
+          *p++ = *src++;
+          break;
+        default:
+          *p++ = *src++;
+          break;
+      }
     }
   }
+  *p++ = '\0';
 }
