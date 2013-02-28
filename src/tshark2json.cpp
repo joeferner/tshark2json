@@ -10,8 +10,6 @@
 
 #define REGEX_MATCH 0
 
-#define OUTPUT_DATA false
-
 #define OUTPUT_BUFFER_SIZE  100000
 #define INITIAL_BUFFER_SIZE 100000
 #define MIN_BUFFER_ROOM     10000
@@ -49,7 +47,8 @@ struct threadData_t {
 
 threadData_t g_threadData[WORKER_THREAD_COUNT];
 pthread_mutex_t g_outputLock;
-static bool g_verbose;
+static bool g_verbose = false;
+static bool g_outputData = false;
 
 char* append(char* pDest, const char* str);
 char* appendInt(char* pDest, int i);
@@ -72,11 +71,12 @@ int main(int argc, char* argv[]) {
   while (1) {
     static struct option longOptions[] = {
       {"verbose", no_argument, 0, 'v'},
+      {"data", no_argument, 0, 'd'},
       {"threads", required_argument, 0, 't'},
       {0, 0, 0, 0}
     };
     int optionIndex = 0;
-    int c = getopt_long(argc, argv, "vt:", longOptions, &optionIndex);
+    int c = getopt_long(argc, argv, "vdt:", longOptions, &optionIndex);
     if (c == -1) {
       break;
     }
@@ -84,6 +84,9 @@ int main(int argc, char* argv[]) {
     switch (c) {
       case 'v':
         g_verbose = true;
+        break;
+      case 'd':
+        g_outputData = true;
         break;
       case 't':
         printf("option -t with value `%s'\n", optarg);
@@ -239,8 +242,8 @@ void* thread_worker(void* threadDataParam) {
   regcomp(&regexData, "^([0-9a-fA-F]+)[[:space:]]+([0-9a-fA-F ]+)[[:space:]]+.+$", REG_EXTENDED);
 
   // IP Regular Expressions
-  regcomp(&regexIPSource,   "Source: ([0-9]*.[0-9]*.[0-9]*.[0-9]*)", REG_EXTENDED);
-  regcomp(&regexIPDest,"Destination: ([0-9]*.[0-9]*.[0-9]*.[0-9]*)", REG_EXTENDED);
+  regcomp(&regexIPSource, "Source: ([0-9]*.[0-9]*.[0-9]*.[0-9]*)", REG_EXTENDED);
+  regcomp(&regexIPDest, "Destination: ([0-9]*.[0-9]*.[0-9]*.[0-9]*)", REG_EXTENDED);
 
   // TCP Regular Expressions
   regcomp(&regexTcpLen, "Len: ([0-9]*)", REG_EXTENDED);
@@ -431,7 +434,7 @@ void* thread_worker(void* threadDataParam) {
                     error = true;
                     break;
                   }
-                  if (OUTPUT_DATA) {
+                  if (g_outputData) {
                     pLine[pmatch[1].rm_eo] = '\0';
                     pLine[pmatch[2].rm_eo] = '\0';
                     dataAddress = strtol(&pLine[pmatch[1].rm_so], NULL, 16);
@@ -509,7 +512,9 @@ void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, secti
 
   switch (*sectionType) {
     case SECTION_TYPE_DATA:
-      APPEND_OUTPUT_BUFFER("]");
+      if (g_outputData) {
+        APPEND_OUTPUT_BUFFER("]");
+      }
       break;
     case SECTION_TYPE_TCP:
     case SECTION_TYPE_IP:
@@ -523,7 +528,9 @@ void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, secti
 
   switch (newSectionType) {
     case SECTION_TYPE_DATA:
-      APPEND_OUTPUT_BUFFER(",\"data\": [");
+      if (g_outputData) {
+        APPEND_OUTPUT_BUFFER(",\"data\": [");
+      }
       break;
     case SECTION_TYPE_TCP:
       APPEND_OUTPUT_BUFFER(",\"tcp\": {");
