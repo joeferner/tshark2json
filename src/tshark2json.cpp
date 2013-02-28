@@ -208,7 +208,8 @@ void* thread_worker(void* threadDataParam) {
   regex_t regexSectionFrame;
   regex_t regexSectionReassembledTcp;
   regex_t regexData;
-
+  regex_t regexIPSource;
+  regex_t regexIPDest;
   regex_t regexTcpLen;
   regex_t regexTcpStreamIndex;
   regex_t regexTcpFlags;
@@ -235,6 +236,8 @@ void* thread_worker(void* threadDataParam) {
   regcomp(&regexData, "^([0-9a-fA-F]+)[[:space:]]+([0-9a-fA-F ]+)[[:space:]]+.+$", REG_EXTENDED);
 
   // IP Regular Expressions
+  regcomp(&regexIPSource,   "Source: ([0-9]*.[0-9]*.[0-9]*.[0-9]*)", REG_EXTENDED);
+  regcomp(&regexIPDest,"Destination: ([0-9]*.[0-9]*.[0-9]*.[0-9]*)", REG_EXTENDED);
 
   // TCP Regular Expressions
   regcomp(&regexTcpLen, "Len: ([0-9]*)", REG_EXTENDED);
@@ -331,6 +334,17 @@ void* thread_worker(void* threadDataParam) {
               case SECTION_TYPE_IP:
                 if (g_verbose) {
                   fprintf(stderr, "ip: %s\n", pLine);
+                }
+                if (regexec(&regexIPSource, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"source\":");
+                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER(",");
+                } else if (regexec(&regexIPDest, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"dest\":");
+                  APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
+                  APPEND_OUTPUT_BUFFER(",");
                 }
                 break;
               case SECTION_TYPE_TCP:
@@ -496,6 +510,10 @@ void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, secti
       break;
     case SECTION_TYPE_TCP:
     case SECTION_TYPE_IP:
+      if (*(pOutputBufferWrite - 1) == ',') {
+        pOutputBufferWrite--;
+        *pOutputBufferWrite = '\0';
+      }
       APPEND_OUTPUT_BUFFER("}");
       break;
   }
