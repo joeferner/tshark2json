@@ -362,29 +362,29 @@ void* thread_worker(void* threadDataParam) {
                 // }
                 if (regexec(&regexHttpUserAgent, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
-                  APPEND_OUTPUT_BUFFER("\"user_agent\":");
+                  APPEND_OUTPUT_BUFFER("\"user_agent\":\"");
                   APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
-                  APPEND_OUTPUT_BUFFER(","); 
+                  APPEND_OUTPUT_BUFFER("\","); 
                 } else if (regexec(&regexHttpUri, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
-                  APPEND_OUTPUT_BUFFER("\"uri\":");
+                  APPEND_OUTPUT_BUFFER("\"uri\":\"");
                   APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
-                  APPEND_OUTPUT_BUFFER(",");
+                  APPEND_OUTPUT_BUFFER("\",");
                 } else if (regexec(&regexHttpHost, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
-                  APPEND_OUTPUT_BUFFER("\"host\":");
+                  APPEND_OUTPUT_BUFFER("\"host\":\"");
                   APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
-                  APPEND_OUTPUT_BUFFER(",");
+                  APPEND_OUTPUT_BUFFER("\",");
                 } else if (regexec(&regexHttpMethod, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
-                  APPEND_OUTPUT_BUFFER("\"method\":");
+                  APPEND_OUTPUT_BUFFER("\"method\":\"");
                   APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
-                  APPEND_OUTPUT_BUFFER(",");
+                  APPEND_OUTPUT_BUFFER("\",");
                 } else if (regexec(&regexHttpStatusCode, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
-                  APPEND_OUTPUT_BUFFER("\"status_code\":");
+                  APPEND_OUTPUT_BUFFER("\"status_code\":\"");
                   APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
-                  APPEND_OUTPUT_BUFFER(",");
+                  APPEND_OUTPUT_BUFFER("\",");
                 }
                 break;
               case SECTION_TYPE_FRAME:
@@ -403,14 +403,14 @@ void* thread_worker(void* threadDataParam) {
                 }
                 if (regexec(&regexIPSource, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
-                  APPEND_OUTPUT_BUFFER("\"source\":");
+                  APPEND_OUTPUT_BUFFER("\"source\":\"");
                   APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
-                  APPEND_OUTPUT_BUFFER(",");
+                  APPEND_OUTPUT_BUFFER("\",");
                 } else if (regexec(&regexIPDest, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
-                  APPEND_OUTPUT_BUFFER("\"dest\":");
+                  APPEND_OUTPUT_BUFFER("\"dest\":\"");
                   APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
-                  APPEND_OUTPUT_BUFFER(",");
+                  APPEND_OUTPUT_BUFFER("\",");
                 }
                 break;
               case SECTION_TYPE_TCP:
