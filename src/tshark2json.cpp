@@ -32,6 +32,7 @@ enum sectionType_t {
   SECTION_TYPE_HTTP,
   SECTION_TYPE_DATA,
   SECTION_TYPE_DATA_REASSEMBLED_TCP,
+  SECTION_TYPE_DATA_XML,
   SECTION_TYPE_END
 };
 
@@ -207,6 +208,7 @@ void* thread_worker(void* threadDataParam) {
   regex_t regexSectionHttp;
   regex_t regexSectionFrame;
   regex_t regexSectionReassembledTcp;
+  regex_t regexSectionXml;
   regex_t regexData;
   regex_t regexIPSource;
   regex_t regexIPDest;
@@ -233,6 +235,7 @@ void* thread_worker(void* threadDataParam) {
   regcomp(&regexSectionHttp, "^Hypertext Transfer Protocol.*$", REG_EXTENDED);
   regcomp(&regexSectionFrame, "^Frame \\([0-9]* bytes\\):$", REG_EXTENDED);
   regcomp(&regexSectionReassembledTcp, "^Reassembled TCP \\([0-9]* bytes\\):$", REG_EXTENDED);
+  regcomp(&regexSectionXml, "^eXtensible Markup Language$", REG_EXTENDED);
   regcomp(&regexData, "^([0-9a-fA-F]+)[[:space:]]+([0-9a-fA-F ]+)[[:space:]]+.+$", REG_EXTENDED);
 
   // IP Regular Expressions
@@ -310,6 +313,9 @@ void* thread_worker(void* threadDataParam) {
           } else if (regexec(&regexSectionReassembledTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_REASSEMBLED_TCP);
+          } else if (regexec(&regexSectionXml, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_XML);
           } else if (sectionType == SECTION_TYPE_UNKNOWN && pLine[0] != '\0') {
             if (regexec(&regexData, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
               changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
@@ -319,6 +325,8 @@ void* thread_worker(void* threadDataParam) {
           if (pLine[0] != '\0') {
             switch (sectionType) {
               case SECTION_TYPE_DATA_REASSEMBLED_TCP:
+              case SECTION_TYPE_DATA_XML:
+              case SECTION_TYPE_HTTP:
                 // don't need this data
                 break;
               case SECTION_TYPE_FRAME:
@@ -411,11 +419,6 @@ void* thread_worker(void* threadDataParam) {
               case SECTION_TYPE_DNS:
                 if (g_verbose) {
                   fprintf(stderr, "dns: %s\n", pLine);
-                }
-                break;
-              case SECTION_TYPE_HTTP:
-                if (g_verbose) {
-                  fprintf(stderr, "http: %s\n", pLine);
                 }
                 break;
               case SECTION_TYPE_DATA:
