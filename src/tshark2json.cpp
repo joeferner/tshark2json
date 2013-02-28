@@ -204,30 +204,22 @@ int main(int argc, char* argv[]) {
   }
 
   // stop threads
-  fprintf(stderr, "stop threads\n");
   for (t = 0; t < g_threadCount; t++) {
-    fprintf(stderr, "stop thread: %d\n", t);
     while (g_threadData[t].hasWork) {
       usleep(1000);
     }
-    fprintf(stderr, "thread has no work: %d\n", t);
     g_threadData[t].exit = true;
     pthread_mutex_unlock(&g_threadData[t].lock);
     pthread_mutex_lock(&g_threadData[t].waitLock);
     pthread_cond_signal(&g_threadData[t].wait);
     pthread_mutex_unlock(&g_threadData[t].waitLock);
-    fprintf(stderr, "thread signaled: %d\n", t);
   }
 
   // wait for threads to end
-  fprintf(stderr, "wait for threads to end\n");
   for (t = 0; t < g_threadCount; t++) {
-    fprintf(stderr, "wait for thread to end: %d\n", t);
     pthread_join(g_threadData[t].thread, NULL);
     free(g_threadData[t].buffer);
-    fprintf(stderr, "done wait for thread to end: %d\n", t);
   }
-  fprintf(stderr, "done wait for threads to end\n");
 
   regfree(&regexFrame);
 
