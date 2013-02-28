@@ -376,14 +376,11 @@ void* thread_worker(void* threadDataParam) {
                 // don't need this data
                 break;
               case SECTION_TYPE_HTTP:
-                // if (g_verbose) {
-                // fprintf(stderr, "http: %s\n", pLine);
-                // }
                 if (regexec(&regexHttpUserAgent, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
                   APPEND_OUTPUT_BUFFER("\"user_agent\":\"");
                   APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
-                  APPEND_OUTPUT_BUFFER("\","); 
+                  APPEND_OUTPUT_BUFFER("\",");
                 } else if (regexec(&regexHttpUri, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
                   APPEND_OUTPUT_BUFFER("\"uri\":\"");
@@ -404,6 +401,8 @@ void* thread_worker(void* threadDataParam) {
                   APPEND_OUTPUT_BUFFER("\"status_code\":\"");
                   APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
                   APPEND_OUTPUT_BUFFER("\",");
+                } else if (g_verbose) {
+                  fprintf(stderr, "http: %s\n", pLine);
                 }
                 break;
               case SECTION_TYPE_FRAME:
@@ -417,9 +416,6 @@ void* thread_worker(void* threadDataParam) {
                 }
                 break;
               case SECTION_TYPE_IP:
-                if (g_verbose) {
-                  fprintf(stderr, "ip: %s\n", pLine);
-                }
                 if (regexec(&regexIPSource, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
                   APPEND_OUTPUT_BUFFER("\"source\":\"");
@@ -430,6 +426,8 @@ void* thread_worker(void* threadDataParam) {
                   APPEND_OUTPUT_BUFFER("\"dest\":\"");
                   APPEND_OUTPUT_BUFFER(&pLine[pmatch[1].rm_so]);
                   APPEND_OUTPUT_BUFFER("\",");
+                } else if (g_verbose) {
+                  fprintf(stderr, "ip: %s\n", pLine);
                 }
                 break;
               case SECTION_TYPE_TCP:
@@ -485,7 +483,9 @@ void* thread_worker(void* threadDataParam) {
                   APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 10));
                   APPEND_OUTPUT_BUFFER(",");
                 } else {
-                  //fprintf(stderr, "tcp: %s\n", pLine);
+                  if (g_verbose) {
+                    fprintf(stderr, "tcp: %s\n", pLine);
+                  }
                 }
                 break;
               case SECTION_TYPE_UDP:
