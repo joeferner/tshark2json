@@ -20,6 +20,7 @@
 #define APPEND_OUTPUT_BUFFER(str)   pOutputBufferWrite = append(pOutputBufferWrite, str)
 #define APPEND_OUTPUT_BUFFER_INT(i) pOutputBufferWrite = appendInt(pOutputBufferWrite, i)
 #define APPEND_OUTPUT_BUFFER_JSON_VALUE(str) pOutputBufferWrite = appendJsonValue(pOutputBufferWrite, str)
+#define REGCOMP(reg, str, opts) if(regcomp(reg,str,opts)) { fprintf(stderr, "Could not compile regex: %s\n", str); }
 
 enum sectionType_t {
   SECTION_TYPE_UNKNOWN,
@@ -121,7 +122,7 @@ int main(int argc, char* argv[]) {
   g_threadData = (threadData_t*) malloc(sizeof (threadData_t) * g_threadCount);
 
   prevData[0] = '\0';
-  regcomp(&regexFrame, "Frame [0-9]*:", 0);
+  REGCOMP(&regexFrame, "Frame [0-9]*:", 0);
   pthread_mutex_init(&g_outputLock, NULL);
 
   for (t = 0; t < g_threadCount; t++) {
@@ -267,39 +268,39 @@ void* thread_worker(void* threadDataParam) {
   int lineNumber;
   int dataAddress;
 
-  regcomp(&regexFrame, "^Frame (.*): ([0-9]*) bytes on wire \\([0-9]* bits\\), ([0-9]*) bytes captured \\([0-9]* bits\\)$", REG_EXTENDED);
-  regcomp(&regexSectionEthernet, "^Ethernet II, .*$", REG_EXTENDED);
-  regcomp(&regexSectionIp, "^Internet Protocol Version .*$", REG_EXTENDED);
-  regcomp(&regexSectionTcp, "^Transmission Control Protocol, .*$", REG_EXTENDED);
-  regcomp(&regexSectionUdp, "^User Datagram Protocol, .*$", REG_EXTENDED);
-  regcomp(&regexSectionDns, "^Domain Name System .*$", REG_EXTENDED);
-  regcomp(&regexSectionHttp, "^Hypertext Transfer Protocol.*$", REG_EXTENDED);
-  regcomp(&regexSectionFrame, "^Frame \\([0-9]* bytes\\):$", REG_EXTENDED);
-  regcomp(&regexSectionReassembledTcp, "^Reassembled TCP \\([0-9]* bytes\\):$", REG_EXTENDED);
-  regcomp(&regexSectionUncompressedEntityBody, "^Uncompressed entity body \\([0-9]* bytes\\):$", REG_EXTENDED);
-  regcomp(&regexSectionDechunkedEntityBody, "^De-chunked entity body \\([0-9]* bytes\\):$", REG_EXTENDED);
-  regcomp(&regexSectionXml, "^eXtensible Markup Language$", REG_EXTENDED);
-  regcomp(&regexData, "^([0-9a-fA-F]+)[[:space:]]+([0-9a-fA-F ]+)[[:space:]]+.+$", REG_EXTENDED);
+  REGCOMP(&regexFrame, "^Frame (.*): ([0-9]*) bytes on wire \\([0-9]* bits\\), ([0-9]*) bytes captured \\([0-9]* bits\\)$", REG_EXTENDED);
+  REGCOMP(&regexSectionEthernet, "^Ethernet II, .*$", REG_EXTENDED);
+  REGCOMP(&regexSectionIp, "^Internet Protocol Version .*$", REG_EXTENDED);
+  REGCOMP(&regexSectionTcp, "^Transmission Control Protocol, .*$", REG_EXTENDED);
+  REGCOMP(&regexSectionUdp, "^User Datagram Protocol, .*$", REG_EXTENDED);
+  REGCOMP(&regexSectionDns, "^Domain Name System .*$", REG_EXTENDED);
+  REGCOMP(&regexSectionHttp, "^Hypertext Transfer Protocol.*$", REG_EXTENDED);
+  REGCOMP(&regexSectionFrame, "^Frame \\([0-9]* bytes\\):$", REG_EXTENDED);
+  REGCOMP(&regexSectionReassembledTcp, "^Reassembled TCP \\([0-9]* bytes\\):$", REG_EXTENDED);
+  REGCOMP(&regexSectionUncompressedEntityBody, "^Uncompressed entity body \\([0-9]* bytes\\):$", REG_EXTENDED);
+  REGCOMP(&regexSectionDechunkedEntityBody, "^De-chunked entity body \\([0-9]* bytes\\):$", REG_EXTENDED);
+  REGCOMP(&regexSectionXml, "^eXtensible Markup Language$", REG_EXTENDED);
+  REGCOMP(&regexData, "^([0-9a-fA-F]+)[[:space:]]+([0-9a-fA-F ]+)[[:space:]]+.+$", REG_EXTENDED);
 
   // IP Regular Expressions
-  regcomp(&regexIPSource, "Source: ([0-9]*.[0-9]*.[0-9]*.[0-9]*)", REG_EXTENDED);
-  regcomp(&regexIPDest, "Destination: ([0-9]*.[0-9]*.[0-9]*.[0-9]*)", REG_EXTENDED);
+  REGCOMP(&regexIPSource, "Source: ([0-9]*.[0-9]*.[0-9]*.[0-9]*)", REG_EXTENDED);
+  REGCOMP(&regexIPDest, "Destination: ([0-9]*.[0-9]*.[0-9]*.[0-9]*)", REG_EXTENDED);
 
   // TCP Regular Expressions
-  regcomp(&regexTcpLen, "Len: ([0-9]*)", REG_EXTENDED);
-  regcomp(&regexTcpStreamIndex, "\\[Stream index: ([0-9]*)\\]", REG_EXTENDED);
-  regcomp(&regexTcpFlags, "Flags:.*\\((.*)\\)", REG_EXTENDED);
-  regcomp(&regexTcpSourcePort, "Source port:.*\\(([0-9]*)\\)", REG_EXTENDED);
-  regcomp(&regexTcpDestinationPort, "Destination port:.*\\(([0-9]*)\\)", REG_EXTENDED);
-  regcomp(&regexTcpSequenceNumber, "Sequence number:[[:space:]]*([0-9]*)", REG_EXTENDED);
-  regcomp(&regexTcpAcknowledgmentNumber, "Acknowledgment number:[[:space:]]*([0-9]*)", REG_EXTENDED);
+  REGCOMP(&regexTcpLen, "Len: ([0-9]*)", REG_EXTENDED);
+  REGCOMP(&regexTcpStreamIndex, "\\[Stream index: ([0-9]*)\\]", REG_EXTENDED);
+  REGCOMP(&regexTcpFlags, "Flags:.*\\((.*)\\)", REG_EXTENDED);
+  REGCOMP(&regexTcpSourcePort, "Source port:.*\\(([0-9]*)\\)", REG_EXTENDED);
+  REGCOMP(&regexTcpDestinationPort, "Destination port:.*\\(([0-9]*)\\)", REG_EXTENDED);
+  REGCOMP(&regexTcpSequenceNumber, "Sequence number:[[:space:]]*([0-9]*)", REG_EXTENDED);
+  REGCOMP(&regexTcpAcknowledgmentNumber, "Acknowledgment number:[[:space:]]*([0-9]*)", REG_EXTENDED);
 
   //HTTP Regular Expressions
-  regcomp(&regexHttpUserAgent, "User-Agent:[[:space:]]*(.*)$", REG_EXTENDED);
-  regcomp(&regexHttpUri, "Full request URI:[[:space:]]*(.*)$", REG_EXTENDED);
-  regcomp(&regexHttpHost, "Host:[[:space:]]*(.*)$", REG_EXTENDED);
-  regcomp(&regexHttpMethod, "Request Method:[[:space:]]*(.*)$", REG_EXTENDED);
-  regcomp(&regexHttpStatusCode, "Status Code:[[:space:]]*(.*)$", REG_EXTENDED);
+  REGCOMP(&regexHttpUserAgent, "User-Agent:[[:space:]]*(.*)$", REG_EXTENDED);
+  REGCOMP(&regexHttpUri, "Full request URI:[[:space:]]*(.*)$", REG_EXTENDED);
+  REGCOMP(&regexHttpHost, "Host:[[:space:]]*(.*)$", REG_EXTENDED);
+  REGCOMP(&regexHttpMethod, "Request Method:[[:space:]]*(.*)$", REG_EXTENDED);
+  REGCOMP(&regexHttpStatusCode, "Status Code:[[:space:]]*(.*)$", REG_EXTENDED);
 
   pThreadData->started = true;
   while (!pThreadData->exit) {
@@ -555,8 +556,8 @@ void* thread_worker(void* threadDataParam) {
       APPEND_OUTPUT_BUFFER("}");
 
       pthread_mutex_lock(&g_outputLock);
-      //fprintf(stdout, "%s\n", pOutputBuffer);
-      //fflush(stdout);
+      fprintf(stdout, "%s\n", pOutputBuffer);
+      fflush(stdout);
       pthread_mutex_unlock(&g_outputLock);
 
       pThreadData->hasWork = false;
@@ -576,8 +577,7 @@ void* thread_worker(void* threadDataParam) {
 char* appendJsonValue(char* pDest, char* str) {
   char temp[10000];
   escape(temp, 10000, str);
-  char* result = append(pDest, temp);
-  return result;
+  return append(pDest, temp);
 }
 
 char* append(char* pDest, const char* str) {
