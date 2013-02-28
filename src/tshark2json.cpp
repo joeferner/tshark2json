@@ -12,14 +12,14 @@
 
 #define REGEX_MATCH 0
 
-#define OUTPUT_BUFFER_SIZE  100000
+#define OUTPUT_BUFFER_SIZE  1000000
 #define INITIAL_BUFFER_SIZE 100000
 #define MIN_BUFFER_ROOM     10000
 #define BUFFER_GROW         10000
 
-#define APPEND_OUTPUT_BUFFER(str)   pOutputBufferWrite = append(pOutputBufferWrite, str)
-#define APPEND_OUTPUT_BUFFER_INT(i) pOutputBufferWrite = appendInt(pOutputBufferWrite, i)
-#define APPEND_OUTPUT_BUFFER_JSON_VALUE(str) pOutputBufferWrite = appendJsonValue(pOutputBufferWrite, str)
+#define APPEND_OUTPUT_BUFFER(str)   pOutputBufferWrite = append(pOutputBuffer, pOutputBufferWrite, str)
+#define APPEND_OUTPUT_BUFFER_INT(i) pOutputBufferWrite = appendInt(pOutputBuffer, pOutputBufferWrite, i)
+#define APPEND_OUTPUT_BUFFER_JSON_VALUE(str) pOutputBufferWrite = appendJsonValue(pOutputBuffer, pOutputBufferWrite, str)
 #define REGCOMP(reg, str, opts) if(regcomp(reg,str,opts)) { fprintf(stderr, "Could not compile regex: %s\n", str); }
 
 enum sectionType_t {
@@ -59,11 +59,11 @@ static bool g_verbose = false;
 static bool g_outputData = false;
 
 void escape(char* dest, int destSize, const char* src);
-char* append(char* pDest, const char* str);
-char* appendJsonValue(char* pDest, char* str);
-char* appendInt(char* pDest, int i);
+char* append(const char* pStart, char* pDest, const char* str);
+char* appendJsonValue(const char* pStart, char* pDest, char* str);
+char* appendInt(const char* pStart, char* pDest, int i);
 void* thread_worker(void* threadData);
-void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, sectionType_t newSectionType);
+void changeSection(const char* pOutputBuffer, char** ppOutputBufferWrite, sectionType_t *sectionType, sectionType_t newSectionType);
 
 int main(int argc, char* argv[]) {
   regex_t regexFrame;
@@ -345,43 +345,43 @@ void* thread_worker(void* threadDataParam) {
                   && sectionType != SECTION_TYPE_DATA
                   && sectionType != SECTION_TYPE_DATA_REASSEMBLED_TCP
                   && sectionType != SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY) {
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_UNKNOWN);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_UNKNOWN);
           } else if (regexec(&regexSectionEthernet, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_ETHERNET);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_ETHERNET);
           } else if (regexec(&regexSectionIp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_IP);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_IP);
           } else if (regexec(&regexSectionTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_TCP);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_TCP);
           } else if (regexec(&regexSectionUdp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_UDP);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_UDP);
           } else if (regexec(&regexSectionDns, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DNS);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DNS);
           } else if (regexec(&regexSectionHttp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_HTTP);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_HTTP);
           } else if (regexec(&regexSectionFrame, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
           } else if (regexec(&regexSectionReassembledTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_REASSEMBLED_TCP);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_REASSEMBLED_TCP);
           } else if (regexec(&regexSectionUncompressedEntityBody, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY);
           } else if (regexec(&regexSectionDechunkedEntityBody, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_DECHUNKED_ENTITY_BODY);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_DECHUNKED_ENTITY_BODY);
           } else if (regexec(&regexSectionXml, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
-            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_XML);
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_XML);
           } else if (sectionType == SECTION_TYPE_UNKNOWN && pLine[0] != '\0') {
             if (regexec(&regexData, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
-              changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
+              changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
             }
           }
 
@@ -555,7 +555,7 @@ void* thread_worker(void* threadDataParam) {
         pLine = pEndOfLine + 1;
         lineNumber++;
       }
-      changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_END);
+      changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_END);
       APPEND_OUTPUT_BUFFER("}");
 
       pthread_mutex_lock(&g_outputLock);
@@ -577,28 +577,38 @@ void* thread_worker(void* threadDataParam) {
   return NULL;
 }
 
-char* appendJsonValue(char* pDest, char* str) {
+char* appendJsonValue(const char* pStart, char* pDest, char* str) {
   char temp[10000];
   escape(temp, 10000, str);
-  return append(pDest, temp);
+  return append(pStart, pDest, temp);
 }
 
-char* append(char* pDest, const char* str) {
+char* append(const char* pStart, char* pDest, const char* str) {
   while (*str) {
+    if (pDest - pStart >= OUTPUT_BUFFER_SIZE) {
+      fprintf(stderr, "output buffer too small\n");
+      return pDest;
+    }
     *pDest++ = *str++;
   }
   *pDest = '\0';
   return pDest;
 }
 
-char* appendInt(char* pDest, int i) {
+char* appendInt(const char* pStart, char* pDest, int i) {
   char buffer[100];
+  int bufferLen;
   sprintf(buffer, "%d", i);
+  bufferLen = strlen(buffer);
+  if ((pDest - pStart) + bufferLen >= OUTPUT_BUFFER_SIZE) {
+    fprintf(stderr, "output buffer too small\n");
+    return pDest;
+  }
   strcpy(pDest, buffer);
-  return pDest + strlen(buffer);
+  return pDest + bufferLen;
 }
 
-void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, sectionType_t newSectionType) {
+void changeSection(const char* pOutputBuffer, char** ppOutputBufferWrite, sectionType_t *sectionType, sectionType_t newSectionType) {
   char* pOutputBufferWrite = *ppOutputBufferWrite;
 
   if (*sectionType == newSectionType) {
