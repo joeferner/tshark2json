@@ -30,6 +30,7 @@ enum sectionType_t {
   SECTION_TYPE_HTTP,
   SECTION_TYPE_DATA,
   SECTION_TYPE_DATA_REASSEMBLED_TCP,
+  SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY,
   SECTION_TYPE_DATA_XML,
   SECTION_TYPE_END
 };
@@ -211,6 +212,7 @@ void* thread_worker(void* threadDataParam) {
   regex_t regexSectionHttp;
   regex_t regexSectionFrame;
   regex_t regexSectionReassembledTcp;
+  regex_t regexSectionUncompressedEntityBody;
   regex_t regexSectionXml;
   regex_t regexData;
   regex_t regexIPSource;
@@ -238,6 +240,7 @@ void* thread_worker(void* threadDataParam) {
   regcomp(&regexSectionHttp, "^Hypertext Transfer Protocol.*$", REG_EXTENDED);
   regcomp(&regexSectionFrame, "^Frame \\([0-9]* bytes\\):$", REG_EXTENDED);
   regcomp(&regexSectionReassembledTcp, "^Reassembled TCP \\([0-9]* bytes\\):$", REG_EXTENDED);
+  regcomp(&regexSectionUncompressedEntityBody, "^Uncompressed entity body \\([0-9]* bytes\\):$", REG_EXTENDED);
   regcomp(&regexSectionXml, "^eXtensible Markup Language$", REG_EXTENDED);
   regcomp(&regexData, "^([0-9a-fA-F]+)[[:space:]]+([0-9a-fA-F ]+)[[:space:]]+.+$", REG_EXTENDED);
 
@@ -290,7 +293,10 @@ void* thread_worker(void* threadDataParam) {
           }
         } else { // not line number 0
           sectionMatch = false;
-          if (pLine[0] == '\0') {
+          if (pLine[0] == '\0'
+                  && sectionType != SECTION_TYPE_DATA
+                  && sectionType != SECTION_TYPE_DATA_REASSEMBLED_TCP
+                  && sectionType != SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY) {
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_UNKNOWN);
           } else if (regexec(&regexSectionEthernet, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
@@ -316,6 +322,9 @@ void* thread_worker(void* threadDataParam) {
           } else if (regexec(&regexSectionReassembledTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_REASSEMBLED_TCP);
+          } else if (regexec(&regexSectionUncompressedEntityBody, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY);
           } else if (regexec(&regexSectionXml, pLine, 0, NULL, 0) == REGEX_MATCH) {
             sectionMatch = true;
             changeSection(&pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_XML);
@@ -327,6 +336,7 @@ void* thread_worker(void* threadDataParam) {
 
           if (pLine[0] != '\0') {
             switch (sectionType) {
+              case SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY:
               case SECTION_TYPE_DATA_REASSEMBLED_TCP:
               case SECTION_TYPE_DATA_XML:
               case SECTION_TYPE_HTTP:
