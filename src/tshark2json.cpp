@@ -175,8 +175,12 @@ void* thread_worker(void* threadDataParam) {
   regex_t regexSectionHttp;
   regex_t regexData;
 
-  regex_t regexTcpLen;
   regex_t regexTcpStreamIndex;
+  regex_t regexTcpFlags;
+  regex_t regexTcpSourcePort;
+  regex_t regexTcpDestinationPort;
+  regex_t regexTcpSequenceNumber;
+  regex_t regexTcpAcknowledgmentNumber;
 
   size_t nmatch = 10;
   regmatch_t pmatch[10];
@@ -196,8 +200,12 @@ void* thread_worker(void* threadDataParam) {
   // IP Regular Expressions
 
   // TCP Regular Expressions
-  regcomp(&regexTcpLen, "Len: ([0-9]*)", REG_EXTENDED);
   regcomp(&regexTcpStreamIndex, "\\[Stream index: ([0-9]*)\\]", REG_EXTENDED);
+  regcomp(&regexTcpFlags, "Flags:.*\\((.*)\\)", REG_EXTENDED);
+  regcomp(&regexTcpSourcePort, "Source port:.*\\(([0-9]*)\\)", REG_EXTENDED);
+  regcomp(&regexTcpDestinationPort, "Destination port:.*\\(([0-9]*)\\)", REG_EXTENDED);
+  regcomp(&regexTcpSequenceNumber, "Sequence number:[[:space:]]*([0-9]*)", REG_EXTENDED);
+  regcomp(&regexTcpAcknowledgmentNumber, "Acknowledgment number:[[:space:]]*([0-9]*)", REG_EXTENDED);
 
   pThreadData->started = true;
   while (!pThreadData->exit) {
@@ -264,15 +272,53 @@ void* thread_worker(void* threadDataParam) {
                 fprintf(stderr, "ip: %s\n", pLine);
                 break;
               case SECTION_TYPE_TCP:
-                if (regexec(&regexTcpLen, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
-                  fprintf(stderr, "tcp len: %s\n", pLine);
-                } else if (regexec(&regexTcpStreamIndex, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                if (regexec(&regexTcpStreamIndex, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pStart = &pLine[pmatch[1].rm_so];
                   pLine[pmatch[1].rm_eo] = '\0';
                   APPEND_OUTPUT_BUFFER("\"streamIndex\":");
-                  APPEND_OUTPUT_BUFFER_INT(strtol(&pLine[pmatch[1].rm_so], NULL, 10));
+                  APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 10));
+                  APPEND_OUTPUT_BUFFER(",");
+                } else if (regexec(&regexTcpFlags, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pStart = &pLine[pmatch[1].rm_so];
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  if (strstr(pStart, "FIN")) {
+                    APPEND_OUTPUT_BUFFER("\"isFIN\":true,");
+                  }
+                  if (strstr(pStart, "ACK")) {
+                    APPEND_OUTPUT_BUFFER("\"isACK\":true,");
+                  }
+                  if (strstr(pStart, "PSH")) {
+                    APPEND_OUTPUT_BUFFER("\"isPSH\":true,");
+                  }
+                  if (strstr(pStart, "SYN")) {
+                    APPEND_OUTPUT_BUFFER("\"isSYN\":true,");
+                  }
+                } else if (regexec(&regexTcpSourcePort, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pStart = &pLine[pmatch[1].rm_so];
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"sourcePort\":");
+                  APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 10));
+                  APPEND_OUTPUT_BUFFER(",");
+                } else if (regexec(&regexTcpDestinationPort, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pStart = &pLine[pmatch[1].rm_so];
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"destPort\":");
+                  APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 10));
+                  APPEND_OUTPUT_BUFFER(",");
+                } else if (regexec(&regexTcpSequenceNumber, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pStart = &pLine[pmatch[1].rm_so];
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"seq\":");
+                  APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 10));
+                  APPEND_OUTPUT_BUFFER(",");
+                } else if (regexec(&regexTcpAcknowledgmentNumber, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
+                  pStart = &pLine[pmatch[1].rm_so];
+                  pLine[pmatch[1].rm_eo] = '\0';
+                  APPEND_OUTPUT_BUFFER("\"ack\":");
+                  APPEND_OUTPUT_BUFFER_INT(strtol(pStart, NULL, 10));
                   APPEND_OUTPUT_BUFFER(",");
                 } else {
-                  fprintf(stderr, "tcp: %s\n", pLine);
+                  //fprintf(stderr, "tcp: %s\n", pLine);
                 }
                 break;
               case SECTION_TYPE_UDP:
@@ -357,12 +403,13 @@ char* appendInt(char* pDest, int i) {
 void changeSection(char** ppOutputBufferWrite, sectionType_t *sectionType, sectionType_t newSectionType) {
   char* pOutputBufferWrite = *ppOutputBufferWrite;
 
+  if (*(pOutputBufferWrite - 1) == ',') {
+    pOutputBufferWrite--;
+    *pOutputBufferWrite = '\0';
+  }
+
   switch (*sectionType) {
     case SECTION_TYPE_DATA:
-      if (*(pOutputBufferWrite - 1) == ',') {
-        pOutputBufferWrite--;
-        *pOutputBufferWrite = '\0';
-      }
       APPEND_OUTPUT_BUFFER("]");
       break;
     case SECTION_TYPE_TCP:
