@@ -38,6 +38,8 @@ enum sectionType_t {
 struct threadData_t {
   pthread_t thread;
   pthread_mutex_t lock;
+  pthread_mutex_t waitLock;
+  pthread_cond_t wait;
   char* buffer;
   int bufferWritePos;
   int bufferSize;
@@ -116,6 +118,8 @@ int main(int argc, char* argv[]) {
     g_threadData[t].bufferWritePos = 0;
     g_threadData[t].buffer = (char*) malloc(g_threadData[t].bufferSize);
     pthread_mutex_init(&g_threadData[t].lock, NULL);
+    pthread_mutex_init(&g_threadData[t].waitLock, NULL);
+    pthread_cond_init(&g_threadData[t].wait, NULL);
     pthread_create(&g_threadData[t].thread, NULL, thread_worker, (void*) &g_threadData[t]);
   }
 
@@ -175,6 +179,9 @@ int main(int argc, char* argv[]) {
     }
 
     pthread_mutex_unlock(&pThreadData->lock);
+    pthread_mutex_lock(&pThreadData->waitLock);
+    pthread_cond_signal(&pThreadData->wait);
+    pthread_mutex_unlock(&pThreadData->waitLock);
     if (read == -1) {
       break;
     }
@@ -189,7 +196,7 @@ int main(int argc, char* argv[]) {
     g_threadData[t].exit = true;
     pthread_mutex_unlock(&g_threadData[t].lock);
   }
-  
+
   // wait for threads to end
   for (t = 0; t < g_threadCount; t++) {
     pthread_join(g_threadData[t].thread, NULL);
@@ -240,7 +247,6 @@ void* thread_worker(void* threadDataParam) {
   regex_t regexHttpMethod;
   regex_t regexHttpStatusCode;
 
-
   size_t nmatch = 10;
   regmatch_t pmatch[10];
   int match;
@@ -275,13 +281,11 @@ void* thread_worker(void* threadDataParam) {
   regcomp(&regexTcpAcknowledgmentNumber, "Acknowledgment number:[[:space:]]*([0-9]*)", REG_EXTENDED);
 
   //HTTP Regular Expressions
-  regcomp(&regexHttpUserAgent,"User-Agent:(.*)$" ,REG_EXTENDED);
-  regcomp(&regexHttpUri,"Full request URI:(.*)$" ,REG_EXTENDED);
-  regcomp(&regexHttpHost,"Host:(.*)$" ,REG_EXTENDED);
-  regcomp(&regexHttpMethod,"Request Method:(.*)$" ,REG_EXTENDED);
-  regcomp(&regexHttpStatusCode,"Status Code:(.*)$" ,REG_EXTENDED);
-
-
+  regcomp(&regexHttpUserAgent, "User-Agent:(.*)$", REG_EXTENDED);
+  regcomp(&regexHttpUri, "Full request URI:(.*)$", REG_EXTENDED);
+  regcomp(&regexHttpHost, "Host:(.*)$", REG_EXTENDED);
+  regcomp(&regexHttpMethod, "Request Method:(.*)$", REG_EXTENDED);
+  regcomp(&regexHttpStatusCode, "Status Code:(.*)$", REG_EXTENDED);
 
   pThreadData->started = true;
   while (!pThreadData->exit) {
@@ -373,7 +377,7 @@ void* thread_worker(void* threadDataParam) {
                 break;
               case SECTION_TYPE_HTTP:
                 // if (g_verbose) {
-                  // fprintf(stderr, "http: %s\n", pLine);
+                // fprintf(stderr, "http: %s\n", pLine);
                 // }
                 if (regexec(&regexHttpUserAgent, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
@@ -544,7 +548,9 @@ void* thread_worker(void* threadDataParam) {
       pThreadData->hasWork = false;
       pthread_mutex_unlock(&pThreadData->lock);
     } else {
-      usleep(10); // no work to do so sleep
+      pthread_mutex_lock(&pThreadData->waitLock);
+      pthread_cond_wait(&pThreadData->wait, &pThreadData->waitLock);
+      pthread_mutex_unlock(&pThreadData->waitLock);
     }
   }
 
