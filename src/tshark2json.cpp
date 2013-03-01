@@ -326,11 +326,11 @@ void* thread_worker(void* threadDataParam) {
   REGCOMP(&regexTcpAcknowledgmentNumber, "Acknowledgment number:[[:space:]]*([0-9]*)", REG_EXTENDED);
 
   //HTTP Regular Expressions
-  REGCOMP(&regexHttpUserAgent, "User-Agent:[[:space:]]*(.*)$", REG_EXTENDED);
-  REGCOMP(&regexHttpUri, "Full request URI:[[:space:]]*(.*)$", REG_EXTENDED);
-  REGCOMP(&regexHttpHost, "Host:[[:space:]]*(.*)$", REG_EXTENDED);
-  REGCOMP(&regexHttpMethod, "Request Method:[[:space:]]*(.*)$", REG_EXTENDED);
-  REGCOMP(&regexHttpStatusCode, "Status Code:[[:space:]]*(.*)$", REG_EXTENDED);
+  REGCOMP(&regexHttpUserAgent, "User-Agent:[[:space:]]*(.*)", REG_EXTENDED);
+  REGCOMP(&regexHttpUri, "[Full request URI[[:space:]]*[truncated]*:[[:space:]]*(.*)]", REG_EXTENDED);
+  REGCOMP(&regexHttpHost, "Host:[[:space:]]*(.*)", REG_EXTENDED);
+  REGCOMP(&regexHttpMethod, "Request Method:[[:space:]]*(.*)", REG_EXTENDED);
+  REGCOMP(&regexHttpStatusCode, "Status Code:[[:space:]]*(.*)", REG_EXTENDED);
 
   pThreadData->started = true;
   while (!pThreadData->exit) {
