@@ -435,7 +435,7 @@ void* thread_worker(void* threadDataParam) {
                 } else if (regexec(&regexHttpUri, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
                   APPEND_OUTPUT_BUFFER("\"uri\":\"");
-                  APPEND_OUTPUT_BUFFER_JSON_VALUE(pStart);
+                  APPEND_OUTPUT_BUFFER_JSON_VALUE(&pLine[pmatch[1].rm_so]);
                   APPEND_OUTPUT_BUFFER("\",");
                 } else if (regexec(&regexHttpHost, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
                   pLine[pmatch[1].rm_eo] = '\0';
