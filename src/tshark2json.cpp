@@ -12,6 +12,7 @@
 #include <sys/queue.h>
 #include <assert.h>
 #include <time.h>
+#include <sys/time.h>
 
 #define REGEX_MATCH 0
 
@@ -84,6 +85,11 @@ buffer_t* unusedBufferQueuePop();
 void usedBufferQueuePush(buffer_t* pBuffer);
 buffer_t* usedBufferQueuePop();
 
+float timeval_subtract(struct timeval *t2, struct timeval *t1) {
+  float diff = (t2->tv_usec + 1000000 * t2->tv_sec) - (t1->tv_usec + 1000000 * t1->tv_sec);
+  return diff / 1000000.0f;
+}
+
 int main(int argc, char* argv[]) {
   regex_t regexFrame;
   int t;
@@ -98,7 +104,7 @@ int main(int argc, char* argv[]) {
   char prevData[INITIAL_BUFFER_SIZE];
   FILE* input = stdin;
   bool hasWork;
-  time_t t1, t2;
+  timeval startTime, endTime;
 
   while (1) {
     static struct option longOptions[] = {
@@ -197,7 +203,7 @@ int main(int argc, char* argv[]) {
   } while (t < g_threadCount);
   usleep(1000);
 
-  t1 = time(NULL);
+  gettimeofday(&startTime, NULL);
 
   // process stdin
   t = 0;
@@ -244,7 +250,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  t2 = time(NULL);
+  gettimeofday(&endTime, NULL);
 
   // wait for threads to finish
   do {
@@ -268,11 +274,11 @@ int main(int argc, char* argv[]) {
     pthread_join(g_threadData[t].thread, NULL);
   }
 
-  float totalTime = (float) t2 - (float) t1;
+  float totalTime = timeval_subtract(&endTime, &startTime);
 
   fprintf(stderr, "Total bytes processed: %0.2fMB\n", (float) g_totalBytesProcessed / 1024.0f / 1024.0f);
   fprintf(stderr, "Total time: %0.2fs\n", totalTime);
-  fprintf(stderr, "Rate: %0.2fMb/s\n", (g_totalBytesProcessed / (totalTime + 1)) / 1024.0f / 1024.0f * 8.0f);
+  fprintf(stderr, "Rate: %0.2fMb/s\n", (g_totalBytesProcessed / (totalTime + 0.01)) / 1024.0f / 1024.0f * 8.0f);
 
   return 0;
 }
