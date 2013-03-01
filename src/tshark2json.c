@@ -91,11 +91,9 @@ float timeval_subtract(struct timeval *t2, struct timeval *t1) {
 }
 
 int main(int argc, char* argv[]) {
-  regex_t regexFrame;
   int t;
   size_t n;
   ssize_t read;
-  regmatch_t pmatch[1];
   int match;
   struct buffer_t* pBuffer;
   char* pWrite;
@@ -183,7 +181,6 @@ int main(int argc, char* argv[]) {
   }
 
   prevData[0] = '\0';
-  REGCOMP(&regexFrame, "Frame [0-9]*:", 0);
   pthread_mutex_init(&g_outputLock, NULL);
 
   for (t = 0; t < g_threadCount; t++) {
@@ -234,8 +231,9 @@ int main(int argc, char* argv[]) {
       }
       if (pBuffer->bufferWritePos > 0) {
         pLine = &pBuffer->buffer[pBuffer->bufferWritePos];
-        match = regexec(&regexFrame, pLine, 1, pmatch, 0);
-        if (match == REGEX_MATCH) {
+        // find lines matching "Frame ###:"
+        // but not "Frame (###):"
+        if (pLine[6] != '(' && pLine[0] == 'F' && !strncmp(pLine, "Frame ", 6)) {
           strcpy(prevData, pLine);
           *pLine = '\0';
           usedBufferQueuePush(pBuffer);
