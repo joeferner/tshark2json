@@ -392,43 +392,47 @@ void* thread_worker(void* threadDataParam) {
                 && sectionType != SECTION_TYPE_DATA_REASSEMBLED_TCP
                 && sectionType != SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY) {
           changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_UNKNOWN);
-        } else if (regexec(&regexSectionEthernet, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_ETHERNET);
-        } else if (regexec(&regexSectionIp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_IP);
-        } else if (regexec(&regexSectionTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          isTcp = true;
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_TCP);
-        } else if (regexec(&regexSectionUdp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          isUdp = true;
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_UDP);
-        } else if (regexec(&regexSectionDns, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DNS);
-        } else if (regexec(&regexSectionHttp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_HTTP);
-        } else if (regexec(&regexSectionFrame, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
-        } else if (regexec(&regexSectionReassembledTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          isReassembledTcp = true;
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_REASSEMBLED_TCP);
-        } else if (regexec(&regexSectionUncompressedEntityBody, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY);
-        } else if (regexec(&regexSectionDechunkedEntityBody, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_DECHUNKED_ENTITY_BODY);
-        } else if (regexec(&regexSectionXml, pLine, 0, NULL, 0) == REGEX_MATCH) {
-          sectionMatch = true;
-          changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_XML);
-        } else if (sectionType == SECTION_TYPE_UNKNOWN && pLine[0] != '\0') {
+        } else if (pLine[0] != ' ') {
+          if (regexec(&regexSectionEthernet, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_ETHERNET);
+          } else if (regexec(&regexSectionIp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_IP);
+          } else if (regexec(&regexSectionTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            isTcp = true;
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_TCP);
+          } else if (regexec(&regexSectionUdp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            isUdp = true;
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_UDP);
+          } else if (regexec(&regexSectionDns, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DNS);
+          } else if (regexec(&regexSectionHttp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_HTTP);
+          } else if (regexec(&regexSectionFrame, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
+          } else if (regexec(&regexSectionReassembledTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            isReassembledTcp = true;
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_REASSEMBLED_TCP);
+          } else if (regexec(&regexSectionUncompressedEntityBody, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_UNCOMPRESSED_ENTITY_BODY);
+          } else if (regexec(&regexSectionDechunkedEntityBody, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_DECHUNKED_ENTITY_BODY);
+          } else if (regexec(&regexSectionXml, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            sectionMatch = true;
+            changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_XML);
+          }
+        }
+
+        if (g_outputData && sectionType == SECTION_TYPE_UNKNOWN && pLine[0] != '\0') {
           if (regexec(&regexData, pLine, nmatch, pmatch, 0) == REGEX_MATCH) {
             changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
           }
@@ -566,16 +570,16 @@ void* thread_worker(void* threadDataParam) {
               }
               break;
             case SECTION_TYPE_DATA:
-              if (!sectionMatch) {
-                if (regexec(&regexData, pLine, nmatch, pmatch, 0) != REGEX_MATCH) {
-                  if (strlen(pLine) == 0) {
+              if (g_outputData) {
+                if (!sectionMatch) {
+                  if (regexec(&regexData, pLine, nmatch, pmatch, 0) != REGEX_MATCH) {
+                    if (strlen(pLine) == 0) {
+                      break;
+                    }
+                    fprintf(stderr, "ERROR: bad line in data section: %s\n", pLine);
+                    error = true;
                     break;
                   }
-                  fprintf(stderr, "ERROR: bad line in data section: %s\n", pLine);
-                  error = true;
-                  break;
-                }
-                if (g_outputData) {
                   pLine[pmatch[1].rm_eo] = '\0';
                   pLine[pmatch[2].rm_eo] = '\0';
                   dataAddress = strtol(&pLine[pmatch[1].rm_so], NULL, 16);
