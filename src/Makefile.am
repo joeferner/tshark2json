@@ -1,2 +1,2 @@
 bin_PROGRAMS=tshark2json
-tshark2json_SOURCES=tshark2json.cpp
+tshark2json_SOURCES=tshark2json.c

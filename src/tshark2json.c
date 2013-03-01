@@ -26,7 +26,7 @@
 #define APPEND_OUTPUT_BUFFER_JSON_VALUE(str) pOutputBufferWrite = appendJsonValue(pOutputBuffer, pOutputBufferWrite, str)
 #define REGCOMP(reg, str, opts) if(regcomp(reg,str,opts)) { fprintf(stderr, "Could not compile regex: %s\n", str); }
 
-enum sectionType_t {
+typedef enum {
   SECTION_TYPE_UNKNOWN,
   SECTION_TYPE_FRAME,
   SECTION_TYPE_ETHERNET,
@@ -41,7 +41,7 @@ enum sectionType_t {
   SECTION_TYPE_DATA_DECHUNKED_ENTITY_BODY,
   SECTION_TYPE_DATA_XML,
   SECTION_TYPE_END
-};
+} sectionType_t;
 
 struct buffer_t {
   char* buffer;
@@ -52,12 +52,12 @@ struct buffer_t {
 
 struct threadData_t {
   pthread_t thread;
-  buffer_t *pBuffer;
+  struct buffer_t *pBuffer;
   bool started;
 };
 
 static int g_threadCount = 8;
-static threadData_t* g_threadData;
+static struct threadData_t* g_threadData;
 static pthread_mutex_t g_outputLock;
 static bool g_verbose = false;
 static bool g_outputData = false;
@@ -80,10 +80,10 @@ char* appendInt(const char* pStart, char* pDest, long i);
 void* thread_worker(void* threadData);
 void changeSection(const char* pOutputBuffer, char** ppOutputBufferWrite, sectionType_t *sectionType, sectionType_t newSectionType);
 void printHelp();
-void unusedBufferQueuePush(buffer_t* pBuffer);
-buffer_t* unusedBufferQueuePop();
-void usedBufferQueuePush(buffer_t* pBuffer);
-buffer_t* usedBufferQueuePop();
+void unusedBufferQueuePush(struct buffer_t* pBuffer);
+struct buffer_t* unusedBufferQueuePop();
+void usedBufferQueuePush(struct buffer_t* pBuffer);
+struct buffer_t* usedBufferQueuePop();
 
 float timeval_subtract(struct timeval *t2, struct timeval *t1) {
   float diff = (t2->tv_usec + 1000000 * t2->tv_sec) - (t1->tv_usec + 1000000 * t1->tv_sec);
@@ -97,14 +97,14 @@ int main(int argc, char* argv[]) {
   ssize_t read;
   regmatch_t pmatch[1];
   int match;
-  buffer_t* pBuffer;
+  struct buffer_t* pBuffer;
   char* pWrite;
   char* pLine;
   char* pNewBuffer;
   char prevData[INITIAL_BUFFER_SIZE];
   FILE* input = stdin;
   bool hasWork;
-  timeval startTime, endTime;
+  struct timeval startTime, endTime;
 
   while (1) {
     static struct option longOptions[] = {
@@ -166,7 +166,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  g_threadData = (threadData_t*) malloc(sizeof (threadData_t) * g_threadCount);
+  g_threadData = (struct threadData_t*) malloc(sizeof (struct threadData_t) * g_threadCount);
   pthread_mutex_init(&g_usedBufferLock, NULL);
   pthread_cond_init(&g_usedBufferSignal, NULL);
   pthread_mutex_init(&g_unusedBufferLock, NULL);
@@ -175,7 +175,7 @@ int main(int argc, char* argv[]) {
   LIST_INIT(&g_unusedBufferQueue);
   LIST_INIT(&g_usedBufferQueue);
   for (t = 0; t < g_threadCount * 2; t++) {
-    pBuffer = (buffer_t*) malloc(sizeof (buffer_t));
+    pBuffer = (struct buffer_t*) malloc(sizeof (struct buffer_t));
     pBuffer->bufferSize = INITIAL_BUFFER_SIZE;
     pBuffer->buffer = (char*) malloc(pBuffer->bufferSize);
     pBuffer->bufferWritePos = 0;
@@ -284,7 +284,7 @@ int main(int argc, char* argv[]) {
 }
 
 void* thread_worker(void* threadDataParam) {
-  threadData_t* pThreadData = (threadData_t*) threadDataParam;
+  struct threadData_t* pThreadData = (struct threadData_t*) threadDataParam;
   char* pOutputBuffer = (char*) malloc(OUTPUT_BUFFER_SIZE);
   char* pOutputBufferWrite;
   char* pLine;
@@ -754,15 +754,15 @@ void escape(char* dest, int destSize, const char* src) {
   *p++ = '\0';
 }
 
-void unusedBufferQueuePush(buffer_t* pBuffer) {
+void unusedBufferQueuePush(struct buffer_t* pBuffer) {
   pthread_mutex_lock(&g_unusedBufferLock);
   LIST_INSERT_HEAD(&g_unusedBufferQueue, pBuffer, queuePointers);
   pthread_cond_signal(&g_unusedBufferSignal);
   pthread_mutex_unlock(&g_unusedBufferLock);
 }
 
-buffer_t* unusedBufferQueuePop() {
-  buffer_t* pBuffer;
+struct buffer_t* unusedBufferQueuePop() {
+  struct buffer_t* pBuffer;
 
   pthread_mutex_lock(&g_unusedBufferLock);
   pBuffer = LIST_FIRST(&g_unusedBufferQueue);
@@ -776,15 +776,15 @@ buffer_t* unusedBufferQueuePop() {
   return pBuffer;
 }
 
-void usedBufferQueuePush(buffer_t* pBuffer) {
+void usedBufferQueuePush(struct buffer_t* pBuffer) {
   pthread_mutex_lock(&g_usedBufferLock);
   LIST_INSERT_HEAD(&g_usedBufferQueue, pBuffer, queuePointers);
   pthread_cond_signal(&g_usedBufferSignal);
   pthread_mutex_unlock(&g_usedBufferLock);
 }
 
-buffer_t* usedBufferQueuePop() {
-  buffer_t* pBuffer;
+struct buffer_t* usedBufferQueuePop() {
+  struct buffer_t* pBuffer;
 
   pthread_mutex_lock(&g_usedBufferLock);
   pBuffer = LIST_FIRST(&g_usedBufferQueue);
