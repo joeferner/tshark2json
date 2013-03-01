@@ -59,6 +59,7 @@ static bool g_verbose = false;
 static bool g_outputData = false;
 static bool g_outputUdp = true;
 static bool g_outputTcp = true;
+static bool g_outputReassembledTcp = true;
 
 void escape(char* dest, int destSize, const char* src);
 char* append(const char* pStart, char* pDest, const char* str);
@@ -66,6 +67,7 @@ char* appendJsonValue(const char* pStart, char* pDest, char* str);
 char* appendInt(const char* pStart, char* pDest, long i);
 void* thread_worker(void* threadData);
 void changeSection(const char* pOutputBuffer, char** ppOutputBufferWrite, sectionType_t *sectionType, sectionType_t newSectionType);
+void printHelp();
 
 int main(int argc, char* argv[]) {
   regex_t regexFrame;
@@ -83,24 +85,39 @@ int main(int argc, char* argv[]) {
 
   while (1) {
     static struct option longOptions[] = {
+      {"help", no_argument, 0, 'h'},
       {"verbose", no_argument, 0, 'v'},
       {"data", no_argument, 0, 'd'},
-      {"tcpOnly", no_argument, 0, 'z'},
+      {"tcpOnly", no_argument, 0, 0},
+      {"reassembledTcpOnly", no_argument, 0, 0},
       {"threads", required_argument, 0, 't'},
       {"in", required_argument, 0, 'i'},
       {0, 0, 0, 0}
     };
     int optionIndex = 0;
-    int c = getopt_long(argc, argv, "zvdt:i:", longOptions, &optionIndex);
+    int c = getopt_long(argc, argv, "hdt:i:", longOptions, &optionIndex);
     if (c == -1) {
-      break;
+      return 1;
     }
 
     switch (c) {
-      case 'z': // tcpOnly
-        g_outputTcp = true;
-        g_outputUdp = false;
+      case 0:
+        if (!strcmp(longOptions[optionIndex].name, "tcpOnly")) {
+          g_outputTcp = true;
+          g_outputUdp = false;
+          g_outputReassembledTcp = true;
+        } else if (!strcmp(longOptions[optionIndex].name, "reassembledTcpOnly")) {
+          g_outputTcp = false;
+          g_outputUdp = false;
+          g_outputReassembledTcp = true;
+        } else {
+          fprintf(stderr, "invalid option: %s\n", longOptions[optionIndex].name);
+          return 1;
+        }
         break;
+      case 'h':
+        printHelp();
+        return 1;
       case 'v':
         g_verbose = true;
         break;
@@ -114,7 +131,7 @@ int main(int argc, char* argv[]) {
         input = fopen(optarg, "r");
         if (input == NULL) {
           fprintf(stderr, "could not open file: %s (%d: %s)\n", optarg, errno, strerror(errno));
-          abort();
+          return 1;
         }
         break;
       case '?':
@@ -122,7 +139,7 @@ int main(int argc, char* argv[]) {
         break;
       default:
         fprintf(stderr, "bad opt: %c\n", c);
-        abort();
+        return 1;
     }
   }
 
@@ -245,6 +262,7 @@ void* thread_worker(void* threadDataParam) {
   bool sectionMatch;
   bool isTcp;
   bool isUdp;
+  bool isReassembledTcp;
   sectionType_t sectionType;
   regex_t regexFrame;
   regex_t regexSectionEthernet;
@@ -323,6 +341,7 @@ void* thread_worker(void* threadDataParam) {
       error = false;
       isTcp = false;
       isUdp = false;
+      isReassembledTcp = false;
       pOutputBufferWrite = pOutputBuffer;
       pOutputBufferWrite[0] = '\0';
       APPEND_OUTPUT_BUFFER("{");
@@ -381,6 +400,7 @@ void* thread_worker(void* threadDataParam) {
             sectionMatch = true;
             changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA);
           } else if (regexec(&regexSectionReassembledTcp, pLine, 0, NULL, 0) == REGEX_MATCH) {
+            isReassembledTcp = true;
             sectionMatch = true;
             changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_DATA_REASSEMBLED_TCP);
           } else if (regexec(&regexSectionUncompressedEntityBody, pLine, 0, NULL, 0) == REGEX_MATCH) {
@@ -571,7 +591,7 @@ void* thread_worker(void* threadDataParam) {
       changeSection(pOutputBuffer, &pOutputBufferWrite, &sectionType, SECTION_TYPE_END);
       APPEND_OUTPUT_BUFFER("}");
 
-      if ((g_outputTcp && isTcp) || (g_outputUdp && isUdp)) {
+      if ((g_outputTcp && isTcp) || (g_outputUdp && isUdp) || (g_outputReassembledTcp && isReassembledTcp)) {
         pthread_mutex_lock(&g_outputLock);
         fprintf(stdout, "%s\n", pOutputBuffer);
         fflush(stdout);
@@ -697,4 +717,19 @@ void escape(char* dest, int destSize, const char* src) {
     }
   }
   *p++ = '\0';
+}
+
+void printHelp() {
+  printf("Usage: tshark2json [options]\n");
+  printf("\n");
+  printf("Options:\n");
+  printf("  -h, --help            Print help\n");
+  printf("  -v, --verbose         Be verbose\n");
+  printf("  -d, --data            Output full data in JSON\n");
+  printf("  --tcpOnly             Only output TCP packets\n");
+  printf("  --reassembledTcpOnly  Only output reassembled TCP packets\n");
+  printf("  -t <count>, --threads=<count>\n");
+  printf("                        Number of threads to use\n");
+  printf("  -i <file>, --in=<file>\n");
+  printf("                        File to read instead of STDOUT\n");
 }
