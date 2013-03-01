@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <sys/queue.h>
 #include <assert.h>
+#include <time.h>
 
 #define REGEX_MATCH 0
 
@@ -69,6 +70,7 @@ static pthread_cond_t g_usedBufferSignal;
 static pthread_mutex_t g_unusedBufferLock;
 static pthread_cond_t g_unusedBufferSignal;
 static bool g_exit = false;
+static long g_totalBytesProcessed = 0;
 
 void escape(char* dest, int destSize, const char* src);
 char* append(const char* pStart, char* pDest, const char* str);
@@ -96,6 +98,7 @@ int main(int argc, char* argv[]) {
   char prevData[INITIAL_BUFFER_SIZE];
   FILE* input = stdin;
   bool hasWork;
+  time_t t1, t2;
 
   while (1) {
     static struct option longOptions[] = {
@@ -194,6 +197,8 @@ int main(int argc, char* argv[]) {
   } while (t < g_threadCount);
   usleep(1000);
 
+  t1 = time(NULL);
+
   // process stdin
   t = 0;
   while (1) {
@@ -239,6 +244,8 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  t2 = time(NULL);
+
   // wait for threads to finish
   do {
     hasWork = false;
@@ -260,6 +267,12 @@ int main(int argc, char* argv[]) {
   for (t = 0; t < g_threadCount; t++) {
     pthread_join(g_threadData[t].thread, NULL);
   }
+
+  float totalTime = (float) t2 - (float) t1;
+
+  fprintf(stderr, "Total bytes processed: %0.2fMB\n", (float) g_totalBytesProcessed / 1024.0f / 1024.0f);
+  fprintf(stderr, "Total time: %0.2fs\n", totalTime);
+  fprintf(stderr, "Rate: %0.2fMb/s\n", (g_totalBytesProcessed / (totalTime + 1)) / 1024.0f / 1024.0f * 8.0f);
 
   return 0;
 }
@@ -379,6 +392,7 @@ void* thread_worker(void* threadDataParam) {
           APPEND_OUTPUT_BUFFER(&pLine[pmatch[2].rm_so]);
           APPEND_OUTPUT_BUFFER(",\"bytesCaptured\":");
           APPEND_OUTPUT_BUFFER(&pLine[pmatch[3].rm_so]);
+          g_totalBytesProcessed += strtol(&pLine[pmatch[3].rm_so], NULL, 10);
           APPEND_OUTPUT_BUFFER("}");
         } else {
           fprintf(stderr, "ERROR: bad frame line: %s\n", pLine);
