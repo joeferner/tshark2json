@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
     int optionIndex = 0;
     int c = getopt_long(argc, argv, "hdt:i:", longOptions, &optionIndex);
     if (c == -1) {
-      return 1;
+      break;
     }
 
     switch (c) {
