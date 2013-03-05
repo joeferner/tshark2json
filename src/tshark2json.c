@@ -71,6 +71,7 @@ static pthread_cond_t g_usedBufferSignal;
 static pthread_mutex_t g_unusedBufferLock;
 static pthread_cond_t g_unusedBufferSignal;
 static bool g_exit = false;
+static bool g_outputMetrics = false;
 static long g_totalBytesProcessed = 0;
 
 void escape(char* dest, int destSize, const char* src);
@@ -110,6 +111,7 @@ int main(int argc, char* argv[]) {
       {"verbose", no_argument, 0, 'v'},
       {"data", no_argument, 0, 'd'},
       {"tcpOnly", no_argument, 0, 0},
+      {"metrics", no_argument, 0, 0},
       {"reassembledTcpOnly", no_argument, 0, 0},
       {"threads", required_argument, 0, 't'},
       {"in", required_argument, 0, 'i'},
@@ -131,6 +133,8 @@ int main(int argc, char* argv[]) {
           g_outputTcp = false;
           g_outputUdp = false;
           g_outputReassembledTcp = true;
+        } else if (!strcmp(longOptions[optionIndex].name, "metrics")) {
+          g_outputMetrics = true;
         } else {
           fprintf(stderr, "invalid option: %s\n", longOptions[optionIndex].name);
           return 1;
@@ -274,9 +278,11 @@ int main(int argc, char* argv[]) {
 
   float totalTime = timeval_subtract(&endTime, &startTime);
 
-  fprintf(stderr, "Total bytes processed: %0.2fMB\n", (float) g_totalBytesProcessed / 1024.0f / 1024.0f);
-  fprintf(stderr, "Total time: %0.2fs\n", totalTime);
-  fprintf(stderr, "Rate: %0.2fMb/s\n", (g_totalBytesProcessed / (totalTime + 0.01)) / 1024.0f / 1024.0f * 8.0f);
+  if (g_outputMetrics) {
+    fprintf(stderr, "Total bytes processed: %0.2fMB\n", (float) g_totalBytesProcessed / 1024.0f / 1024.0f);
+    fprintf(stderr, "Total time: %0.2fs\n", totalTime);
+    fprintf(stderr, "Rate: %0.2fMb/s\n", (g_totalBytesProcessed / (totalTime + 0.01)) / 1024.0f / 1024.0f * 8.0f);
+  }
 
   return 0;
 }
